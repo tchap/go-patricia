@@ -5,8 +5,6 @@
 
 package patricia
 
-//import "fmt"
-
 const (
 	// Max prefix length that is kept in a single trie node.
 	MaxPrefixPerNode = 10
@@ -18,7 +16,7 @@ type childList interface {
 	length() int
 	head() *Trie
 	add(child *Trie) childList
-	replace(child *Trie)
+	replace(b byte, child *Trie)
 	remove(child *Trie)
 	next(b byte) *Trie
 	walk(prefix *Prefix, visitor VisitorFunc) error
@@ -53,17 +51,14 @@ func (list *sparseChildList) add(child *Trie) childList {
 	return newDenseChildList(list)
 }
 
-func (list *sparseChildList) replace(child *Trie) {
-	// Seek the child with the same prefix.
+func (list *sparseChildList) replace(b byte, child *Trie) {
+	// Seek the child and replace it.
 	for i, node := range list.children {
-		if node.prefix[0] == child.prefix[0] {
+		if node.prefix[0] == b {
 			list.children[i] = child
 			return
 		}
 	}
-
-	// This is not supposed to be reached.
-	panic("replacing non-existent child")
 }
 
 func (list *sparseChildList) remove(child *Trie) {
@@ -89,14 +84,15 @@ func (list *sparseChildList) next(b byte) *Trie {
 
 func (list *sparseChildList) walk(prefix *Prefix, visitor VisitorFunc) error {
 	for _, child := range list.children {
+		*prefix = append(*prefix, child.prefix...)
 		if child.item != nil {
-			*prefix = append(*prefix, child.prefix...)
 			err := visitor(*prefix, child.item)
 			if err != nil {
-				*prefix = (*prefix)[:len(*prefix)-len(child.prefix)]
 				if err == SkipSubtree {
+					*prefix = (*prefix)[:len(*prefix)-len(child.prefix)]
 					continue
 				}
+				*prefix = (*prefix)[:len(*prefix)-len(child.prefix)]
 				return err
 			}
 		}
@@ -176,7 +172,8 @@ func (list *denseChildList) add(child *Trie) childList {
 	return list
 }
 
-func (list *denseChildList) replace(child *Trie) {
+func (list *denseChildList) replace(b byte, child *Trie) {
+	list.children[int(b)] = nil
 	list.children[int(child.prefix[0])] = child
 }
 

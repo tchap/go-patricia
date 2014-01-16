@@ -5,7 +5,13 @@
 
 package patricia
 
-import "errors"
+import (
+	"errors"
+)
+
+//------------------------------------------------------------------------------
+// Trie
+//------------------------------------------------------------------------------
 
 type (
 	Prefix      []byte
@@ -13,11 +19,8 @@ type (
 	VisitorFunc func(prefix Prefix, item Item) error
 )
 
-// Trie is a generic patricia trie that allows
-//
-// 1. visit all items saved in the tree,
-// 2. visit all items matching particular prefix (visit subtree), or
-// 3. given a string, visit all items matching some prefix of the string.
+// Trie is a generic patricia trie that allows fast retrieval of items by prefix.
+// and other funky stuff.
 //
 // Trie is not thread-safe.
 type Trie struct {
@@ -26,6 +29,8 @@ type Trie struct {
 
 	children childList
 }
+
+// Public API ------------------------------------------------------------------
 
 // Trie constructor.
 func NewTrie() *Trie {
@@ -39,87 +44,44 @@ func (trie *Trie) Item() Item {
 	return trie.item
 }
 
-// Insert inserts a new item into the trie using the given prefix.
+// Insert inserts a new item into the trie using the given prefix. Insert does
+// not replace existing items. It returns false if an item was already in place.
+func (trie *Trie) Insert(key Prefix, item Item) (inserted bool) {
+	return trie.put(key, item, false)
+}
+
+// Set works much like Insert, but it always sets the item, possibly replacing
+// the item previously inserted.
+func (trie *Trie) Set(key Prefix, item Item) {
+	trie.put(key, item, true)
+}
+
+// Get returns the item located at key.
 //
-// True is returned unless the node with the given key already exists.
-func (trie *Trie) Insert(prefix Prefix, item Item) (inserted bool) {
-	// Nil prefix not allowed.
-	if prefix == nil {
-		panic(ErrNilPrefix)
+// This method is a bit dangerous, because Get can as well end up in an internal
+// node that is not really representing any user-defined value. So when nil is
+// a valid value being used, it is not possible to tell if the value was inserted
+// into the tree by the user or not. A possible workaround for this is not to use
+// nil interface as a valid value, even using zero value of any type is enough
+// to prevent this bad behaviour.
+func (trie *Trie) Get(key Prefix) (item Item) {
+	_, node, _, leftover := trie.findSubtree(key)
+	if len(leftover) != 0 {
+		return nil
 	}
+	return node.item
+}
 
-	var (
-		common int
-		node   *Trie = trie
-		child  *Trie
-	)
+// Match returns what Get(prefix) != nil would return. The same warning as for
+// Get applies here as well.
+func (trie *Trie) Match(prefix Prefix) (matchedExactly bool) {
+	return trie.Get(prefix) != nil
+}
 
-	if trie.prefix == nil {
-		goto ExtendPath
-	}
-
-	for {
-		// Compute the longest common prefix length.
-		common = node.longestCommonPrefixLength(prefix)
-		prefix = prefix[common:]
-
-		// Only a part matches, split.
-		if common < len(node.prefix) {
-			goto SplitPrefix
-		}
-
-		// common == len(node.prefix) since never (common > len(node.prefix))
-		// common == len(former prefix) <-> 0 == len(prefix)
-		// -> former prefix == node.prefix
-		if len(prefix) == 0 {
-			goto InsertItem
-		}
-
-		// Check children for matching prefix.
-		child = node.children.next(prefix[0])
-		if child == nil {
-			goto AppendChild
-		}
-		node = child
-	}
-
-SplitPrefix:
-	// Split the prefix if necessary.
-	child = new(Trie)
-	*child = *node
-	*node = *NewTrie()
-	node.prefix = child.prefix[:common]
-	child.prefix = child.prefix[common:]
-	child = child.compact()
-	node.children = node.children.add(child)
-
-AppendChild:
-	child = NewTrie()
-	node.children = node.children.add(child)
-	node = child
-
-ExtendPath:
-	// Keep appending children until whole prefix is inserted.
-	for {
-		if len(prefix) <= MaxPrefixPerNode {
-			node.prefix = prefix
-			goto InsertItem
-		} else {
-			child := NewTrie()
-			child.prefix = node.prefix[MaxPrefixPerNode:]
-			node.prefix = node.prefix[:MaxPrefixPerNode]
-			node.children = node.children.add(child)
-			node = child
-		}
-	}
-
-InsertItem:
-	// Try to insert the item if possible.
-	if node.item == nil {
-		node.item = item
-		inserted = true
-		return
-	}
+// MatchSubtree returns true when there is a subtree representing extensions
+// to key, that is if there are any keys in the tree which have key as prefix.
+func (trie *Trie) MatchSubtree(key Prefix) (matched bool) {
+	_, _, matched, _ = trie.findSubtree(key)
 	return
 }
 
@@ -146,20 +108,21 @@ func (trie *Trie) VisitSubtree(prefix Prefix, visitor VisitorFunc) error {
 	}
 
 	// Locate the relevant subtree.
-	_, root, found, _ := trie.findSubtree(prefix)
+	_, root, found, leftover := trie.findSubtree(prefix)
 	if !found {
 		return nil
 	}
+	prefix = append(prefix, leftover...)
 
 	// Visit it.
 	return root.walk(prefix, visitor)
 }
 
-// VisitPrefixes visits only nodes that represent prefixes of word.
+// VisitPrefixes visits only nodes that represent prefixes of key.
 // To say the obvious, returning SkipSubtree from visitor makes no sense here.
-func (trie *Trie) VisitPrefixes(word Prefix, visitor VisitorFunc) error {
-	// Nil word not allowed.
-	if word == nil {
+func (trie *Trie) VisitPrefixes(key Prefix, visitor VisitorFunc) error {
+	// Nil key not allowed.
+	if key == nil {
 		panic(ErrNilPrefix)
 	}
 
@@ -168,14 +131,14 @@ func (trie *Trie) VisitPrefixes(word Prefix, visitor VisitorFunc) error {
 		return nil
 	}
 
-	// Walk the path matching word prefixes.
+	// Walk the path matching key prefixes.
 	node := trie
-	prefix := word
+	prefix := key
 	offset := 0
 	for {
 		// Compute what part of prefix matches.
-		common := node.longestCommonPrefixLength(word)
-		word = word[common:]
+		common := node.longestCommonPrefixLength(key)
+		key = key[common:]
 		offset += common
 
 		// Partial match means that there is no subtree matching prefix.
@@ -190,13 +153,13 @@ func (trie *Trie) VisitPrefixes(word Prefix, visitor VisitorFunc) error {
 			}
 		}
 
-		if len(word) == 0 {
-			// This node represents word, we are finished.
+		if len(key) == 0 {
+			// This node represents key, we are finished.
 			return nil
 		}
 
-		// There is some word suffix left, move to the children.
-		child := node.children.next(word[0])
+		// There is some key suffix left, move to the children.
+		child := node.children.next(key[0])
 		if child == nil {
 			// There is nowhere to continue, return.
 			return nil
@@ -209,9 +172,9 @@ func (trie *Trie) VisitPrefixes(word Prefix, visitor VisitorFunc) error {
 // Delete deletes the item represented by the given prefix.
 //
 // True is returned if the matching node was found and deleted.
-func (trie *Trie) Delete(word Prefix) (deleted bool) {
+func (trie *Trie) Delete(key Prefix) (deleted bool) {
 	// Nil prefix not allowed.
-	if word == nil {
+	if key == nil {
 		panic(ErrNilPrefix)
 	}
 
@@ -221,8 +184,8 @@ func (trie *Trie) Delete(word Prefix) (deleted bool) {
 	}
 
 	// Find the relevant node.
-	parent, node, _, match := trie.findSubtree(word)
-	if !match {
+	parent, node, _, leftover := trie.findSubtree(key)
+	if len(leftover) != 0 {
 		return false
 	}
 
@@ -235,11 +198,14 @@ func (trie *Trie) Delete(word Prefix) (deleted bool) {
 	node.item = nil
 
 	// Compact since that might be possible now.
-	node = node.compact()
-	if parent != nil {
-		*parent = *parent.compact()
+	if compacted := node.compact(); compacted != node {
+		if parent == nil {
+			*node = *compacted
+		} else {
+			parent.children.replace(node.prefix[0], compacted)
+			*parent = *parent.compact()
+		}
 	}
-	parent.children.replace(node)
 
 	return true
 }
@@ -276,7 +242,119 @@ func (trie *Trie) DeleteSubtree(prefix Prefix) (deleted bool) {
 	return true
 }
 
-func (trie *Trie) findSubtree(prefix Prefix) (parent *Trie, root *Trie, found bool, exactMatch bool) {
+// Internal helper methods -----------------------------------------------------
+
+func (trie *Trie) put(key Prefix, item Item, replace bool) (inserted bool) {
+	// Nil prefix not allowed.
+	if key == nil {
+		panic(ErrNilPrefix)
+	}
+
+	var (
+		common int
+		node   *Trie = trie
+		child  *Trie
+	)
+
+	if trie.prefix == nil {
+		goto ExtendPath
+	}
+
+	for {
+		// Compute the longest common prefix length.
+		common = node.longestCommonPrefixLength(key)
+		key = key[common:]
+
+		// Only a part matches, split.
+		if common < len(node.prefix) {
+			goto SplitPrefix
+		}
+
+		// common == len(node.prefix) since never (common > len(node.prefix))
+		// common == len(former key) <-> 0 == len(key)
+		// -> former key == node.prefix
+		if len(key) == 0 {
+			goto InsertItem
+		}
+
+		// Check children for matching prefix.
+		child = node.children.next(key[0])
+		if child == nil {
+			goto AppendChild
+		}
+		node = child
+	}
+
+SplitPrefix:
+	// Split the prefix if necessary.
+	child = new(Trie)
+	*child = *node
+	*node = *NewTrie()
+	node.prefix = child.prefix[:common]
+	child.prefix = child.prefix[common:]
+	child = child.compact()
+	node.children = node.children.add(child)
+
+AppendChild:
+	child = NewTrie()
+	node.children = node.children.add(child)
+	node = child
+
+ExtendPath:
+	// Keep appending children until whole prefix is inserted.
+	// This loop starts with empty node.prefix that needs to be filled.
+	for {
+		if len(key) <= MaxPrefixPerNode {
+			node.prefix = key
+			goto InsertItem
+		} else {
+			child := NewTrie()
+			node.children = node.children.add(child)
+			node.prefix = key[:MaxPrefixPerNode]
+			key = key[MaxPrefixPerNode:]
+			node = child
+		}
+	}
+
+InsertItem:
+	// Try to insert the item if possible.
+	if replace || node.item == nil {
+		node.item = item
+		return true
+	}
+	return false
+}
+
+func (trie *Trie) compact() *Trie {
+	// Only a node with a single child can be compacted.
+	if trie.children.length() != 1 {
+		return trie
+	}
+
+	child := trie.children.head()
+
+	// If any item is set, we cannot compact since we want to retain
+	// the ability to do searching by key. This makes compaction less usable,
+	// but that simply cannot be avoided.
+	if trie.item != nil || child.item != nil {
+		return trie
+	}
+
+	// Make sure the combined prefixes fit into a single node.
+	if len(trie.prefix)+len(child.prefix) > MaxPrefixPerNode {
+		return trie
+	}
+
+	// Concatenate the prefixes, move the items.
+	child.prefix = append(trie.prefix, child.prefix...)
+	if trie.item != nil {
+		child.item = trie.item
+	}
+
+	return child
+}
+
+func (trie *Trie) findSubtree(prefix Prefix) (parent *Trie, root *Trie, found bool, leftover Prefix) {
 	// Find the subtree matching prefix.
 	root = trie
 	for {
@@ -287,9 +365,7 @@ func (trie *Trie) findSubtree(prefix Prefix) (parent *Trie, root *Trie, found bo
 		// We used up the whole prefix, subtree found.
 		if len(prefix) == 0 {
 			found = true
-			if common == len(root.prefix) {
-				exactMatch = true
-			}
+			leftover = root.prefix[common:]
 			return
 		}
 
@@ -314,14 +390,13 @@ func (trie *Trie) walk(actualRootPrefix Prefix, visitor VisitorFunc) error {
 	var prefix Prefix
 	// Allocate a bit more space for prefix at the beginning.
 	if actualRootPrefix == nil {
-		prefix = make(Prefix, 32)
+		prefix = make(Prefix, 32+len(trie.prefix))
 		copy(prefix, trie.prefix)
 		prefix = prefix[:len(trie.prefix)]
 	} else {
 		prefix = make(Prefix, 32+len(actualRootPrefix))
 		copy(prefix, actualRootPrefix)
-		copy(prefix[len(actualRootPrefix):], trie.prefix)
-		prefix = prefix[:len(actualRootPrefix)+len(trie.prefix)]
+		prefix = prefix[:len(actualRootPrefix)]
 	}
 
 	// Visit the root first. Not that this works for empty trie as well since
@@ -337,33 +412,6 @@ func (trie *Trie) walk(actualRootPrefix Prefix, visitor VisitorFunc) error {
 
 	// Then continue to the children.
 	return trie.children.walk(&prefix, visitor)
-}
-
-func (trie *Trie) compact() *Trie {
-	// Only a node with a single child can be compacted.
-	if trie.children.length() != 1 {
-		return trie
-	}
-
-	child := trie.children.head()
-
-	// Only nodes that are not both containing items can be compacted.
-	if trie.item != nil && child.item != nil {
-		return trie
-	}
-
-	// Make sure the combined prefixes fit into a single node.
-	if len(trie.prefix)+len(child.prefix) > MaxPrefixPerNode {
-		return trie
-	}
-
-	// Concatenate the prefixes, move the items.
-	child.prefix = append(trie.prefix, child.prefix...)
-	if trie.item != nil {
-		child.item = trie.item
-	}
-
-	return child
 }
 
 func (trie *Trie) longestCommonPrefixLength(prefix Prefix) (i int) {

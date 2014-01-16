@@ -1,10 +1,10 @@
-# go-patricia
+# go-patricia #
 
-**Build Status**: [![Build
-Status](https://travis-ci.org/tchap/go-patricia.png?branch=master)](https://travis-ci.org/tchap/go-patricia)
+**Documentation**: [GoDoc](http://godoc.org/github.com/tchap/go-patricia/patricia)<br />
+**Build Status**: [![Build Status](https://travis-ci.org/tchap/go-patricia.png?branch=master)](https://travis-ci.org/tchap/go-patricia)<br >
 **Test Coverate**: Comming as soon as Drone.io people update their Go.
 
-#### About
+## About ##
 
 A generic patricia trie (also called radix tree) implemented in Go (Golang).
 
@@ -13,21 +13,94 @@ items. It is possible to
 
 1. visit all items saved in the tree,
 2. visit all items matching particular prefix (visit subtree), or
-3. given a string, visit all items matching some prefix of the string.
+3. given a string, visit all items matching some prefix of that string.
 
 `[]byte` type is used for keys, `interface{}` for values.
 
 `Trie` is not thread safe. Synchronize the access yourself.
 
-## State of the Project
+### State of the Project ###
 
 This project is very much still in development and the API can change any time.
 
-## Documentation
+More (unit) testing would be cool.
 
-Check the generated documentation at [GoDoc](http://godoc.org/github.com/tchap/go-patricia/patricia).
+## Usage ##
 
-## License
+```go
+import (
+	"github.com/tchap/go-patricia/patricia"
+	"fmt"
+)
+
+printItem := func(prefix patricia.Prefix, item patricia.Item) error {
+	fmt.Printf("%q: %v\n", prefix, item)
+	return nil
+}
+
+// Create a new tree.
+trie := NewTrie()
+
+// Insert some items.
+trie.Insert(Prefix("Pepa Novak"), 1)
+trie.Insert(Prefix("Pepa Sindelar"), 2)
+trie.Insert(Prefix("Karel Macha"), 3)
+trie.Insert(Prefix("Karel Hynek Macha"), 4)
+
+// Walk the tree.
+trie.Visit(printItem)
+// "Pepa Novak": 1
+// "Pepa Sindelar": 2
+// "Karel Macha": 3
+// "Karel Hynek Macha": 4
+
+// Walk a subtree.
+trie.VisitSubtree(Prefix("Pepa"), printItem)
+// "Pepa Novak": 1
+// "Pepa Sindelar": 2
+
+// Modify an item, then fetch it from the tree.
+trie.Set(Prefix("Karel Hynek Macha"), 10)
+key := Prefix("Karel Hynek Macha")
+fmt.Printf("%q: %v\n", key, trie.Get(key))
+// "Karel Hynek Macha": 10
+
+// Walk prefixes.
+prefix := Prefix("Karel Hynek Macha je kouzelnik")
+trie.VisitPrefixes(prefix, printItem)
+// "Karel Hynek Macha": 10
+
+// Delete some items.
+trie.Delete(Prefix("Pepa Novak"))
+trie.Delete(Prefix("Karel Macha"))
+
+// Walk again.
+trie.Visit(printItem)
+// "Pepa Sindelar": 2
+// "Karel Hynek Macha": 10
+
+// Delete a subtree.
+trie.DeleteSubtree(Prefix("Pepa"))
+
+// Print what is left.
+trie.Visit(printItem)
+// "Karel Hynek Macha": 10
+
+// Output:
+// "Pepa Novak": 1
+// "Pepa Sindelar": 2
+// "Karel Macha": 3
+// "Karel Hynek Macha": 4
+// "Pepa Novak": 1
+// "Pepa Sindelar": 2
+// "Karel Hynek Macha": 10
+// "Karel Hynek Macha": 10
+// "Pepa Sindelar": 2
+// "Karel Hynek Macha": 10
+// "Karel Hynek Macha": 10
+```
+
+## License ##
 
 MIT, check the `LICENSE` file.
 
