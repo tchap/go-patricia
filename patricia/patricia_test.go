@@ -563,7 +563,7 @@ func ExampleTrie() {
 	key := Prefix("Pepa Novak")
 	fmt.Printf("%q present? %v\n", key, trie.Match(key))
 	key = Prefix("Karel")
-	fmt.Printf("Someone called %q present? %v\n", key, trie.MatchSubtree(key))
+	fmt.Printf("Anybody called %q here? %v\n", key, trie.MatchSubtree(key))
 
 	// Walk the tree.
 	trie.Visit(printItem)
@@ -606,7 +606,7 @@ func ExampleTrie() {
 
 	// Output:
 	// "Pepa Novak" present? true
-	// Someone called "Karel" present? true
+	// Anybody called "Karel" here? true
 	// "Pepa Novak": 1
 	// "Pepa Sindelar": 2
 	// "Karel Macha": 3

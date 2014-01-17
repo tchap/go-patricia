@@ -27,12 +27,15 @@ More (unit) testing would be cool.
 
 ## Usage ##
 
-```go
-import (
-	"github.com/tchap/go-patricia/patricia"
-	"fmt"
-)
+Import the package from GitHub first.
 
+```go
+import "github.com/tchap/go-patricia/patricia"
+```
+
+Then you can start having fun.
+
+```go
 printItem := func(prefix patricia.Prefix, item patricia.Item) error {
 	fmt.Printf("%q: %v\n", prefix, item)
 	return nil
@@ -46,6 +49,14 @@ trie.Insert(Prefix("Pepa Novak"), 1)
 trie.Insert(Prefix("Pepa Sindelar"), 2)
 trie.Insert(Prefix("Karel Macha"), 3)
 trie.Insert(Prefix("Karel Hynek Macha"), 4)
+
+// Just check if some things are present in the tree.
+key := Prefix("Pepa Novak")
+fmt.Printf("%q present? %v\n", key, trie.Match(key))
+// "Pepa Novak" present? true
+key = Prefix("Karel")
+fmt.Printf("Anybody called %q here? %v\n", key, trie.MatchSubtree(key))
+// Anybody called "Karel" here? true
 
 // Walk the tree.
 trie.Visit(printItem)
@@ -61,7 +72,7 @@ trie.VisitSubtree(Prefix("Pepa"), printItem)
 
 // Modify an item, then fetch it from the tree.
 trie.Set(Prefix("Karel Hynek Macha"), 10)
-key := Prefix("Karel Hynek Macha")
+key = Prefix("Karel Hynek Macha")
 fmt.Printf("%q: %v\n", key, trie.Get(key))
 // "Karel Hynek Macha": 10
 
@@ -84,19 +95,6 @@ trie.DeleteSubtree(Prefix("Pepa"))
 
 // Print what is left.
 trie.Visit(printItem)
-// "Karel Hynek Macha": 10
-
-// Output:
-// "Pepa Novak": 1
-// "Pepa Sindelar": 2
-// "Karel Macha": 3
-// "Karel Hynek Macha": 4
-// "Pepa Novak": 1
-// "Pepa Sindelar": 2
-// "Karel Hynek Macha": 10
-// "Karel Hynek Macha": 10
-// "Pepa Sindelar": 2
-// "Karel Hynek Macha": 10
 // "Karel Hynek Macha": 10
 ```
 
