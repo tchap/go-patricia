@@ -8,8 +8,8 @@
 
 A generic patricia trie (also called radix tree) implemented in Go (Golang).
 
-The patricia trie as implemented in this library enables fast visitiong of
-items. It is possible to
+The patricia trie as implemented in this library enables fast visiting of items
+in some particular ways:
 
 1. visit all items saved in the tree,
 2. visit all items matching particular prefix (visit subtree), or
