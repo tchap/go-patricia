@@ -130,14 +130,14 @@ func newDenseChildList(list *sparseChildList) childList {
 
 	children := make([]*Trie, max-min+1)
 	for _, child := range list.children {
-		children[min+int(child.prefix[0])] = child
+		children[int(child.prefix[0])-min] = child
 	}
 
 	return &denseChildList{min, max, children}
 }
 
 func (list *denseChildList) length() int {
-	return list.max - list.min
+	return list.max - list.min + 1
 }
 
 func (list *denseChildList) head() *Trie {
@@ -173,17 +173,17 @@ func (list *denseChildList) add(child *Trie) childList {
 }
 
 func (list *denseChildList) replace(b byte, child *Trie) {
-	list.children[int(b)] = nil
-	list.children[int(child.prefix[0])] = child
+	list.children[int(b)-list.min] = nil
+	list.children[int(child.prefix[0])-list.min] = child
 }
 
 func (list *denseChildList) remove(child *Trie) {
-	b := int(child.prefix[0])
-	if list.children[b] == nil {
+	i := int(child.prefix[0]) - list.min
+	if list.children[i] == nil {
 		// This is not supposed to be reached.
 		panic("removing non-existent child")
 	}
-	list.children[b] = child
+	list.children[i] = child
 }
 
 func (list *denseChildList) next(b byte) *Trie {
@@ -191,7 +191,7 @@ func (list *denseChildList) next(b byte) *Trie {
 	if i < list.min || list.max < i {
 		return nil
 	}
-	return list.children[i]
+	return list.children[i-list.min]
 }
 
 func (list *denseChildList) walk(prefix *Prefix, visitor VisitorFunc) error {
