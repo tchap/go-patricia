@@ -48,7 +48,7 @@ func (list *sparseChildList) add(child *Trie) childList {
 	}
 
 	// Otherwise we have to transform to the dense list type.
-	return newDenseChildList(list)
+	return newDenseChildList(list, child)
 }
 
 func (list *sparseChildList) replace(b byte, child *Trie) {
@@ -113,7 +113,7 @@ type denseChildList struct {
 	children []*Trie
 }
 
-func newDenseChildList(list *sparseChildList) childList {
+func newDenseChildList(list *sparseChildList, child *Trie) childList {
 	var (
 		min int = 255
 		max int = 0
@@ -128,10 +128,19 @@ func newDenseChildList(list *sparseChildList) childList {
 		}
 	}
 
+	b := int(child.prefix[0])
+	if b < min {
+		min = b
+	}
+	if b > max {
+		max = b
+	}
+
 	children := make([]*Trie, max-min+1)
 	for _, child := range list.children {
 		children[int(child.prefix[0])-min] = child
 	}
+	children[int(child.prefix[0])-min] = child
 
 	return &denseChildList{min, max, children}
 }
