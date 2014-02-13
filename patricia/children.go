@@ -149,10 +149,10 @@ func (list *denseChildList) add(child *Trie) childList {
 
 	switch {
 	case list.min <= b && b <= list.max:
-		if list.children[b] != nil {
+		if list.children[b-list.min] != nil {
 			panic("dense child list collision detected")
 		}
-		list.children[b] = child
+		list.children[b-list.min] = child
 
 	case b < list.min:
 		children := make([]*Trie, list.max-b+1)
@@ -161,9 +161,9 @@ func (list *denseChildList) add(child *Trie) childList {
 		list.children = children
 		list.min = b
 
-	default:
+	default: // b > list.max
 		children := make([]*Trie, b-list.min+1)
-		children[b] = child
+		children[b-list.min] = child
 		copy(children, list.children)
 		list.children = children
 		list.max = b

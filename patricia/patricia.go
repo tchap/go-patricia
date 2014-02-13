@@ -256,8 +256,14 @@ func (trie *Trie) put(key Prefix, item Item, replace bool) (inserted bool) {
 		child  *Trie
 	)
 
-	if trie.prefix == nil {
-		goto ExtendPath
+	if node.prefix == nil {
+		if len(key) <= MaxPrefixPerNode {
+			node.prefix = key
+			goto InsertItem
+		}
+		node.prefix = key[:MaxPrefixPerNode]
+		key = key[MaxPrefixPerNode:]
+		goto AppendChild
 	}
 
 	for {
@@ -296,22 +302,19 @@ SplitPrefix:
 	node.children = node.children.add(child)
 
 AppendChild:
-	child = NewTrie()
-	node.children = node.children.add(child)
-	node = child
-
-ExtendPath:
 	// Keep appending children until whole prefix is inserted.
 	// This loop starts with empty node.prefix that needs to be filled.
 	for {
+		child := NewTrie()
 		if len(key) <= MaxPrefixPerNode {
-			node.prefix = key
+			child.prefix = key
+			node.children = node.children.add(child)
+			node = child
 			goto InsertItem
 		} else {
-			child := NewTrie()
-			node.children = node.children.add(child)
-			node.prefix = key[:MaxPrefixPerNode]
+			child.prefix = key[:MaxPrefixPerNode]
 			key = key[MaxPrefixPerNode:]
+			node.children = node.children.add(child)
 			node = child
 		}
 	}
