@@ -183,7 +183,7 @@ func (list *denseChildList) remove(child *Trie) {
 		// This is not supposed to be reached.
 		panic("removing non-existent child")
 	}
-	list.children[i] = child
+	list.children[i] = nil
 }
 
 func (list *denseChildList) next(b byte) *Trie {
@@ -199,16 +199,18 @@ func (list *denseChildList) walk(prefix *Prefix, visitor VisitorFunc) error {
 		if child == nil {
 			continue
 		}
+		*prefix = append(*prefix, child.prefix...)
 		if child.item != nil {
 			if err := visitor(*prefix, child.item); err != nil {
 				if err == SkipSubtree {
+					*prefix = (*prefix)[:len(*prefix)-len(child.prefix)]
 					continue
 				}
+				*prefix = (*prefix)[:len(*prefix)-len(child.prefix)]
 				return err
 			}
 		}
 
-		*prefix = append(*prefix, child.prefix...)
 		err := child.children.walk(prefix, visitor)
 		*prefix = (*prefix)[:len(*prefix)-len(child.prefix)]
 		if err != nil {
