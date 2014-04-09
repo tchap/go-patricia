@@ -374,6 +374,7 @@ func (trie *Trie) findSubtree(prefix Prefix) (parent *Trie, root *Trie, found bo
 
 		// Partial match means that there is no subtree matching prefix.
 		if common < len(root.prefix) {
+			leftover = root.prefix[common:]
 			return
 		}
 
