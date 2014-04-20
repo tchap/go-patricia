@@ -51,6 +51,23 @@ func TestTrie_InsertDense(t *testing.T) {
 	}
 }
 
+func TestTrie_InsertDensePreceeding(t *testing.T) {
+	trie := NewTrie()
+	start := byte(70)
+	// create a dense node
+	for i := byte(0); i <= MaxChildrenPerSparseNode; i++ {
+		if !trie.Insert(Prefix([]byte{start + i}), true) {
+			t.Errorf("insert failed, prefix=%v", start+i)
+		}
+	}
+	// insert some preceeding keys
+	for i := byte(1); i < start; i *= i + 1 {
+		if !trie.Insert(Prefix([]byte{start - i}), true) {
+			t.Errorf("insert failed, prefix=%v", start-i)
+		}
+	}
+}
+
 func TestTrie_InsertDenseDuplicatePrefixes(t *testing.T) {
 	trie := NewTrie()
 
