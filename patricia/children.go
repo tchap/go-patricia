@@ -166,7 +166,7 @@ func (list *denseChildList) add(child *Trie) childList {
 	case b < list.min:
 		children := make([]*Trie, list.max-b+1)
 		children[0] = child
-		copy(children[b:], list.children)
+		copy(children[list.min-b:], list.children)
 		list.children = children
 		list.min = b
 
