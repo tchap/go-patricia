@@ -21,9 +21,10 @@ in some particular ways:
 
 ### State of the Project ###
 
-This project is very much still in development and the API can change any time.
+Apparently some people are using this, so the API should not change often.
+Any ideas on how to make the library better are still welcome.
 
-More (unit) testing would be cool.
+More (unit) testing would be cool as well...
 
 ## Usage ##
 
