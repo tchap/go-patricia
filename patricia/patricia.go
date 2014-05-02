@@ -382,6 +382,7 @@ func (trie *Trie) findSubtree(prefix Prefix) (parent *Trie, root *Trie, found bo
 		child := root.children.next(prefix[0])
 		if child == nil {
 			// There is nowhere to continue, there is no subtree matching prefix.
+			leftover = prefix
 			return
 		}
 

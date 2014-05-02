@@ -154,6 +154,25 @@ func TestTrie_Match(t *testing.T) {
 	}
 }
 
+func TestTrie_MatchFalsePositive(t *testing.T) {
+	trie := NewTrie()
+
+	if ok := trie.Insert(Prefix("A"), 1); !ok {
+		t.Fatal("INSERT prefix=A, item=1 not ok")
+	}
+
+	resultMatchSubtree := trie.MatchSubtree(Prefix("A extra"))
+	resultMatch := trie.Match(Prefix("A extra"))
+
+	if resultMatchSubtree != false {
+		t.Error("MatchSubtree returned false positive")
+	}
+
+	if resultMatch != false {
+		t.Error("Match returned false positive")
+	}
+}
+
 func TestTrie_MatchSubtree(t *testing.T) {
 	trie := NewTrie()
 
