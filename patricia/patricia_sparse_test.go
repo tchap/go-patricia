@@ -81,6 +81,18 @@ func TestTrie_InsertVariousPrefixes(t *testing.T) {
 	}
 }
 
+func TestTrie_InsertAndMatchPrefix(t *testing.T) {
+	trie := NewTrie()
+	t.Log("INSERT prefix=by week")
+	trie.Insert(Prefix("by week"), 2)
+	t.Log("INSERT prefix=by")
+	trie.Insert(Prefix("by"), 1)
+
+	if !trie.Match(Prefix("by")) {
+		t.Error("MATCH prefix=by, expected=true, got=false")
+	}
+}
+
 func TestTrie_SetGet(t *testing.T) {
 	trie := NewTrie()
 

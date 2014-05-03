@@ -304,7 +304,7 @@ SplitPrefix:
 AppendChild:
 	// Keep appending children until whole prefix is inserted.
 	// This loop starts with empty node.prefix that needs to be filled.
-	for {
+	for len(key) != 0 {
 		child := NewTrie()
 		if len(key) <= MaxPrefixPerNode {
 			child.prefix = key
