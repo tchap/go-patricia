@@ -34,6 +34,12 @@ Import the package from GitHub first.
 import "github.com/tchap/go-patricia/patricia"
 ```
 
+You can as well use gopkg.in thingie:
+
+```go
+import "gopkg.in/tchap/go-patricia.v1/patricia"
+```
+
 Then you can start having fun.
 
 ```go
