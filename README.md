@@ -1,8 +1,10 @@
 # go-patricia #
 
-**Documentation**: [GoDoc](http://godoc.org/github.com/tchap/go-patricia/patricia)<br />
-**Build Status**: [![Build Status](https://travis-ci.org/tchap/go-patricia.png?branch=master)](https://travis-ci.org/tchap/go-patricia)<br >
-**Test Coverage**: Comming as soon as Drone.io people update their Go.
+**Documentation**: [GoDoc](http://godoc.org/github.com/tchap/go-patricia/patricia)
+**Build Status**: [![Build
+Status](https://drone.io/github.com/tchap/go-patricia/status.png)](https://drone.io/github.com/tchap/go-patricia/latest)
+**Test Coverage**: [![Coverage
+Status](https://coveralls.io/repos/tchap/go-patricia/badge.png)](https://coveralls.io/r/tchap/go-patricia)
 
 ## About ##
 
