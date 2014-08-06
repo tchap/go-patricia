@@ -250,6 +250,11 @@ func (trie *Trie) put(key Prefix, item Item, replace bool) (inserted bool) {
 		panic(ErrNilPrefix)
 	}
 
+	// make a copy of the key slice
+	keyCp := make(Prefix, len(key))
+	copy(keyCp, key)
+	key = keyCp
+
 	var (
 		common int
 		node   *Trie = trie
