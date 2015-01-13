@@ -9,7 +9,7 @@ package patricia
 var MaxPrefixPerNode = 10
 
 // Max children to keep in a node in the sparse mode.
-const MaxChildrenPerSparseNode = 8
+var MaxChildrenPerSparseNode = 8
 
 type childList interface {
 	length() int
