@@ -19,6 +19,29 @@ type (
 	VisitorFunc func(prefix Prefix, item Item) error
 )
 
+const (
+	DefaultMaxPrefixPerNode         = 10
+	DefaultMaxChildrenPerSparseNode = 8
+)
+
+type Option struct {
+	// Max prefix length that is kept in a single trie node.
+	MaxPrefixPerNode int
+	// Max children to keep in a node in the sparse mode.
+	MaxChildrenPerSparseNode int
+}
+
+func NewOption(maxPrefixPerNode int, maxChildrenPerSparseNode int) *Option {
+	return &Option{
+		MaxPrefixPerNode:         maxPrefixPerNode,
+		MaxChildrenPerSparseNode: maxChildrenPerSparseNode,
+	}
+}
+
+func defaultOption() *Option {
+	return NewOption(DefaultMaxPrefixPerNode, DefaultMaxChildrenPerSparseNode)
+}
+
 // Trie is a generic patricia trie that allows fast retrieval of items by prefix.
 // and other funky stuff.
 //
@@ -28,15 +51,31 @@ type Trie struct {
 	item   Item
 
 	children childList
+	option   *Option
 }
 
 // Public API ------------------------------------------------------------------
 
 // Trie constructor.
 func NewTrie() *Trie {
+	o := defaultOption()
+	return NewTrieWithOption(o)
+}
+
+// Trie constructor with option.
+func NewTrieWithOption(o *Option) *Trie {
 	return &Trie{
-		children: newSparseChildList(),
+		children: newSparseChildList(o.MaxChildrenPerSparseNode),
+		option:   o,
 	}
+}
+
+func (trie *Trie) MaxPrefixPerNode() int {
+	return trie.option.MaxPrefixPerNode
+}
+
+func (trie *Trie) MaxChildrenPerSparseNode() int {
+	return trie.option.MaxChildrenPerSparseNode
 }
 
 // Item returns the item stored in the root of this trie.
@@ -233,7 +272,7 @@ func (trie *Trie) DeleteSubtree(prefix Prefix) (deleted bool) {
 	// If we are in the root of the trie, reset the trie.
 	if parent == nil {
 		root.prefix = nil
-		root.children = newSparseChildList()
+		root.children = newSparseChildList(trie.option.MaxChildrenPerSparseNode)
 		return true
 	}
 
@@ -257,12 +296,12 @@ func (trie *Trie) put(key Prefix, item Item, replace bool) (inserted bool) {
 	)
 
 	if node.prefix == nil {
-		if len(key) <= MaxPrefixPerNode {
+		if len(key) <= trie.option.MaxPrefixPerNode {
 			node.prefix = key
 			goto InsertItem
 		}
-		node.prefix = key[:MaxPrefixPerNode]
-		key = key[MaxPrefixPerNode:]
+		node.prefix = key[:trie.option.MaxPrefixPerNode]
+		key = key[trie.option.MaxPrefixPerNode:]
 		goto AppendChild
 	}
 
@@ -295,7 +334,7 @@ SplitPrefix:
 	// Split the prefix if necessary.
 	child = new(Trie)
 	*child = *node
-	*node = *NewTrie()
+	*node = *NewTrieWithOption(trie.option)
 	node.prefix = child.prefix[:common]
 	child.prefix = child.prefix[common:]
 	child = child.compact()
@@ -305,15 +344,15 @@ AppendChild:
 	// Keep appending children until whole prefix is inserted.
 	// This loop starts with empty node.prefix that needs to be filled.
 	for len(key) != 0 {
-		child := NewTrie()
-		if len(key) <= MaxPrefixPerNode {
+		child := NewTrieWithOption(trie.option)
+		if len(key) <= trie.option.MaxPrefixPerNode {
 			child.prefix = key
 			node.children = node.children.add(child)
 			node = child
 			goto InsertItem
 		} else {
-			child.prefix = key[:MaxPrefixPerNode]
-			key = key[MaxPrefixPerNode:]
+			child.prefix = key[:trie.option.MaxPrefixPerNode]
+			key = key[trie.option.MaxPrefixPerNode:]
 			node.children = node.children.add(child)
 			node = child
 		}
@@ -344,7 +383,7 @@ func (trie *Trie) compact() *Trie {
 	}
 
 	// Make sure the combined prefixes fit into a single node.
-	if len(trie.prefix)+len(child.prefix) > MaxPrefixPerNode {
+	if len(trie.prefix)+len(child.prefix) > trie.option.MaxPrefixPerNode {
 		return trie
 	}
 
