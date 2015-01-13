@@ -5,12 +5,6 @@
 
 package patricia
 
-// Max prefix length that is kept in a single trie node.
-var MaxPrefixPerNode = 10
-
-// Max children to keep in a node in the sparse mode.
-const MaxChildrenPerSparseNode = 8
-
 type childList interface {
 	length() int
 	head() *Trie
@@ -25,9 +19,9 @@ type sparseChildList struct {
 	children []*Trie
 }
 
-func newSparseChildList() childList {
+func newSparseChildList(maxChildrenPerSparseNode int) childList {
 	return &sparseChildList{
-		children: make([]*Trie, 0, MaxChildrenPerSparseNode),
+		children: make([]*Trie, 0, maxChildrenPerSparseNode),
 	}
 }
 
