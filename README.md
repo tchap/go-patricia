@@ -50,8 +50,11 @@ printItem := func(prefix patricia.Prefix, item patricia.Item) error {
 	return nil
 }
 
-// Create a new tree.
+// Create a new default trie (using the default parameter values).
 trie := NewTrie()
+
+// Create a new custom trie.
+trie := NewTrie(MaxPrefixPerNode(16), MaxChildrenPerSparseNode(10))
 
 // Insert some items.
 trie.Insert(Prefix("Pepa Novak"), 1)
