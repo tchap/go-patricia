@@ -119,7 +119,8 @@ func (trie *Trie) MatchSubtree(key Prefix) (matched bool) {
 	return
 }
 
-// Visit calls visitor on every node containing a non-nil item.
+// Visit calls visitor on every node containing a non-nil item
+// in alphabetical order.
 //
 // If an error is returned from visitor, the function stops visiting the tree
 // and returns that error, unless it is a special error - SkipSubtree. In that
