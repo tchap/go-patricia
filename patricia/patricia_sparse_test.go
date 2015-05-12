@@ -123,7 +123,7 @@ func TestTrie_SetGet(t *testing.T) {
 		value := trie.Get(Prefix(v.key))
 		t.Logf("GET %q => %v", v.key, value)
 		if value.(int) != 10 {
-			t.Errorf("Unexpected return value, != 10", value)
+			t.Errorf("Unexpected return value, %v != 10", value)
 		}
 	}
 
