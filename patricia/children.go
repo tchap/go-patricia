@@ -38,7 +38,7 @@ type sparseChildList struct {
 
 func newSparseChildList(maxChildrenPerSparseNode int) childList {
 	return &sparseChildList{
-		children: make(tries, 0, DefaultMaxChildrenPerSparseNode),
+		children: make(tries, 0, maxChildrenPerSparseNode),
 	}
 }
 
