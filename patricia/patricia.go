@@ -6,7 +6,11 @@
 package patricia
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
+	"io"
+	"strings"
 )
 
 //------------------------------------------------------------------------------
@@ -130,6 +134,21 @@ func (trie *Trie) Visit(visitor VisitorFunc) error {
 	return trie.walk(nil, visitor)
 }
 
+func (trie *Trie) size() int {
+	n := 0
+
+	trie.walk(nil, func(prefix Prefix, item Item) error {
+		n++
+		return nil
+	})
+
+	return n
+}
+
+func (trie *Trie) total() int {
+	return 1 + trie.children.total()
+}
+
 // VisitSubtree works much like Visit, but it only visits nodes matching prefix.
 func (trie *Trie) VisitSubtree(prefix Prefix, visitor VisitorFunc) error {
 	// Nil prefix not allowed.
@@ -240,6 +259,11 @@ func (trie *Trie) Delete(key Prefix) (deleted bool) {
 			parent.children.replace(node.prefix[0], compacted)
 			*parent = *parent.compact()
 		}
+	}
+
+	// Remove the node if it has no items.
+	if node.size() == 0 {
+		parent.children.remove(node)
 	}
 
 	return true
@@ -457,6 +481,17 @@ func (trie *Trie) longestCommonPrefixLength(prefix Prefix) (i int) {
 	for ; i < len(prefix) && i < len(trie.prefix) && prefix[i] == trie.prefix[i]; i++ {
 	}
 	return
+}
+
+func (trie *Trie) dump() string {
+	writer := &bytes.Buffer{}
+	trie.print(writer, 0)
+	return writer.String()
+}
+
+func (trie *Trie) print(writer io.Writer, indent int) {
+	fmt.Fprintf(writer, "%s%s %v\n", strings.Repeat(" ", indent), string(trie.prefix), trie.item)
+	trie.children.print(writer, indent+2)
 }
 
 // Errors ----------------------------------------------------------------------
