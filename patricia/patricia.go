@@ -262,7 +262,7 @@ func (trie *Trie) Delete(key Prefix) (deleted bool) {
 	}
 
 	// Remove the node if it has no items.
-	if node.size() == 0 {
+	if node.empty() {
 		parent.children.remove(node)
 	}
 
@@ -302,6 +302,17 @@ func (trie *Trie) DeleteSubtree(prefix Prefix) (deleted bool) {
 }
 
 // Internal helper methods -----------------------------------------------------
+
+func (trie *Trie) empty() bool {
+	isEmpty := true
+
+	trie.walk(nil, func(prefix Prefix, item Item) error {
+		isEmpty = false
+		return SkipSubtree
+	})
+
+	return isEmpty
+}
 
 func (trie *Trie) put(key Prefix, item Item, replace bool) (inserted bool) {
 	// Nil prefix not allowed.

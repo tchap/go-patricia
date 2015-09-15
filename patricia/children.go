@@ -41,16 +41,6 @@ type sparseChildList struct {
 	children tries
 }
 
-func (list *sparseChildList) total() int {
-	tot := 0
-	for _, child := range list.children {
-		if child != nil {
-			tot = tot + child.total()
-		}
-	}
-	return tot
-}
-
 func newSparseChildList(maxChildrenPerSparseNode int) childList {
 	return &sparseChildList{
 		children: make(tries, 0, maxChildrenPerSparseNode),
@@ -133,6 +123,16 @@ func (list *sparseChildList) walk(prefix *Prefix, visitor VisitorFunc) error {
 	}
 
 	return nil
+}
+
+func (list *sparseChildList) total() int {
+	tot := 0
+	for _, child := range list.children {
+		if child != nil {
+			tot = tot + child.total()
+		}
+	}
+	return tot
 }
 
 func (list *sparseChildList) print(w io.Writer, indent int) {

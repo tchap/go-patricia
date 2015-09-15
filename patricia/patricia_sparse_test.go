@@ -417,7 +417,7 @@ func TestParticiaTrie_Delete(t *testing.T) {
 	}
 }
 
-func TestParticiaTrie_DeleteLeakage(t *testing.T) {
+func TestParticiaTrie_DeleteLeakageSparse(t *testing.T) {
 	trie := NewTrie()
 
 	data := []testData{

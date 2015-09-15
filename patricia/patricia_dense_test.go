@@ -163,7 +163,7 @@ func TestTrie_DeleteDense(t *testing.T) {
 	}
 }
 
-func TestTrie_DeleteLeakage(t *testing.T) {
+func TestTrie_DeleteLeakageDense(t *testing.T) {
 	trie := NewTrie()
 
 	data := []testData{
