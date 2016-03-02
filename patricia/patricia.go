@@ -251,23 +251,26 @@ func (trie *Trie) Delete(key Prefix) (deleted bool) {
 	// Delete the item.
 	node.item = nil
 
-	// Compact since that might be possible now.
+	// Simply remote the node in case it is empty.
+	if node.empty() {
+		if parent == nil {
+			// In case this is the root node, we reset it.
+			node.reset()
+		} else {
+			// Otherwise we simply remove it from the parent.
+			parent.children.remove(node.prefix[0])
+		}
+		// Done, the node is deleted.
+		return true
+	}
+
+	// The node is not empty, compact since that might be possible now.
 	if compacted := node.compact(); compacted != node {
 		if parent == nil {
 			*node = *compacted
 		} else {
 			parent.children.replace(node.prefix[0], compacted)
 			*parent = *parent.compact()
-		}
-	}
-
-	// Remove the node if it has no items.
-	if node.empty() {
-		// If at the root of the trie, reset
-		if parent == nil {
-			node.reset()
-		} else {
-			parent.children.remove(node)
 		}
 	}
 
@@ -301,21 +304,14 @@ func (trie *Trie) DeleteSubtree(prefix Prefix) (deleted bool) {
 	}
 
 	// Otherwise remove the root node from its parent.
-	parent.children.remove(root)
+	parent.children.remove(root.prefix[0])
 	return true
 }
 
 // Internal helper methods -----------------------------------------------------
 
 func (trie *Trie) empty() bool {
-	isEmpty := true
-
-	trie.walk(nil, func(prefix Prefix, item Item) error {
-		isEmpty = false
-		return SkipSubtree
-	})
-
-	return isEmpty
+	return trie.item == nil && trie.children.length() == 0
 }
 
 func (trie *Trie) reset() {

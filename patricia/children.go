@@ -6,6 +6,7 @@
 package patricia
 
 import (
+	"fmt"
 	"io"
 	"sort"
 )
@@ -14,8 +15,8 @@ type childList interface {
 	length() int
 	head() *Trie
 	add(child *Trie) childList
+	remove(b byte)
 	replace(b byte, child *Trie)
-	remove(child *Trie)
 	next(b byte) *Trie
 	walk(prefix *Prefix, visitor VisitorFunc) error
 	print(w io.Writer, indent int)
@@ -66,19 +67,9 @@ func (list *sparseChildList) add(child *Trie) childList {
 	return newDenseChildList(list, child)
 }
 
-func (list *sparseChildList) replace(b byte, child *Trie) {
-	// Seek the child and replace it.
+func (list *sparseChildList) remove(b byte) {
 	for i, node := range list.children {
 		if node.prefix[0] == b {
-			list.children[i] = child
-			return
-		}
-	}
-}
-
-func (list *sparseChildList) remove(child *Trie) {
-	for i, node := range list.children {
-		if node.prefix[0] == child.prefix[0] {
 			list.children, list.children[len(list.children)-1] =
 				append(list.children[:i], list.children[i+1:]...),
 				nil
@@ -88,6 +79,21 @@ func (list *sparseChildList) remove(child *Trie) {
 
 	// This is not supposed to be reached.
 	panic("removing non-existent child")
+}
+
+func (list *sparseChildList) replace(b byte, child *Trie) {
+	// Make a consistency check.
+	if p0 := child.prefix[0]; p0 != b {
+		panic(fmt.Errorf("child prefix mismatch: %v != %v", p0, b))
+	}
+
+	// Seek the child and replace it.
+	for i, node := range list.children {
+		if node.prefix[0] == b {
+			list.children[i] = child
+			return
+		}
+	}
 }
 
 func (list *sparseChildList) next(b byte) *Trie {
@@ -219,18 +225,23 @@ func (list *denseChildList) add(child *Trie) childList {
 	return list
 }
 
-func (list *denseChildList) replace(b byte, child *Trie) {
-	list.children[int(b)-list.min] = nil
-	list.children[int(child.prefix[0])-list.min] = child
-}
-
-func (list *denseChildList) remove(child *Trie) {
-	i := int(child.prefix[0]) - list.min
+func (list *denseChildList) remove(b byte) {
+	i := int(b) - list.min
 	if list.children[i] == nil {
 		// This is not supposed to be reached.
 		panic("removing non-existent child")
 	}
 	list.children[i] = nil
+}
+
+func (list *denseChildList) replace(b byte, child *Trie) {
+	// Make a consistency check.
+	if p0 := child.prefix[0]; p0 != b {
+		panic(fmt.Errorf("child prefix mismatch: %v != %v", p0, b))
+	}
+
+	// Replace the child.
+	list.children[int(b)-list.min] = child
 }
 
 func (list *denseChildList) next(b byte) *Trie {
