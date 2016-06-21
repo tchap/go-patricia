@@ -211,7 +211,7 @@ func TestTrie_DeleteLeakageDense(t *testing.T) {
 
 	if newBytes := heapAllocatedBytes(); newBytes > oldBytes+overhead {
 		t.Logf("Size=%d, Total=%d, Trie state:\n%s\n", trie.size(), trie.total(), trie.dump())
-		t.Errorf("Heap space leak, grew from %d to %d bytes\n", oldBytes, newBytes)
+		t.Errorf("Heap space leak, grew %d bytes (%d to %d)\n", newBytes-oldBytes, oldBytes, newBytes)
 	}
 }
 
