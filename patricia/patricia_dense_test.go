@@ -12,7 +12,9 @@ import (
 
 // Tests -----------------------------------------------------------------------
 
-const overhead = 256
+// overhead is allowed tolerance for Go's runtime/GC to increase the allocated memory
+// (to avoid failing tests on insignificant growth amounts)
+const overhead = 25000
 
 func TestTrie_InsertDense(t *testing.T) {
 	trie := NewTrie()
@@ -197,15 +199,18 @@ func TestTrie_DeleteLeakageDense(t *testing.T) {
 
 	oldBytes := heapAllocatedBytes()
 
-	for _, v := range data {
-		if ok := trie.Insert(Prefix(v.key), v.value); ok != v.retVal {
-			t.Errorf("Unexpected return value, expected=%v, got=%v", v.retVal, ok)
+	// repeat insertion/deletion for 10K times to catch possible memory issues
+	for i := 0; i < 10000; i++ {
+		for _, v := range data {
+			if ok := trie.Insert(Prefix(v.key), v.value); ok != v.retVal {
+				t.Errorf("Unexpected return value, expected=%v, got=%v", v.retVal, ok)
+			}
 		}
-	}
 
-	for _, v := range data {
-		if ok := trie.Delete([]byte(v.key)); ok != v.retVal {
-			t.Errorf("Unexpected return value, expected=%v, got=%v", v.retVal, ok)
+		for _, v := range data {
+			if ok := trie.Delete([]byte(v.key)); ok != v.retVal {
+				t.Errorf("Unexpected return value, expected=%v, got=%v", v.retVal, ok)
+			}
 		}
 	}
 
