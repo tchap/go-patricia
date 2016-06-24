@@ -428,15 +428,17 @@ func TestParticiaTrie_DeleteLeakageSparse(t *testing.T) {
 
 	oldBytes := heapAllocatedBytes()
 
-	for _, v := range data {
-		if ok := trie.Insert([]byte(v.key), v.value); ok != v.retVal {
-			t.Fatalf("Unexpected return value, expected=%v, got=%v", v.retVal, ok)
+	for i := 0; i < 10000; i++ {
+		for _, v := range data {
+			if ok := trie.Insert([]byte(v.key), v.value); ok != v.retVal {
+				t.Fatalf("Unexpected return value, expected=%v, got=%v", v.retVal, ok)
+			}
 		}
-	}
 
-	for _, v := range data {
-		if ok := trie.Delete([]byte(v.key)); ok != v.retVal {
-			t.Errorf("Unexpected return value, expected=%v, got=%v", v.retVal, ok)
+		for _, v := range data {
+			if ok := trie.Delete([]byte(v.key)); ok != v.retVal {
+				t.Errorf("Unexpected return value, expected=%v, got=%v", v.retVal, ok)
+			}
 		}
 	}
 
