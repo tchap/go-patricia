@@ -152,9 +152,11 @@ func (list *sparseChildList) print(w io.Writer, indent int) {
 }
 
 type denseChildList struct {
-	min      int
-	max      int
-	children []*Trie
+	min         int
+	max         int
+	numChildren int
+	headIndex   int
+	children    []*Trie
 }
 
 func newDenseChildList(list *sparseChildList, child *Trie) childList {
@@ -186,42 +188,56 @@ func newDenseChildList(list *sparseChildList, child *Trie) childList {
 	}
 	children[int(child.prefix[0])-min] = child
 
-	return &denseChildList{min, max, children}
+	return &denseChildList{
+		min:         min,
+		max:         max,
+		numChildren: list.length() + 1,
+		headIndex:   0,
+		children:    children,
+	}
 }
 
 func (list *denseChildList) length() int {
-	return list.max - list.min + 1
+	return list.numChildren
 }
 
 func (list *denseChildList) head() *Trie {
-	return list.children[0]
+	return list.children[list.headIndex]
 }
 
 func (list *denseChildList) add(child *Trie) childList {
 	b := int(child.prefix[0])
+	var i int
 
 	switch {
 	case list.min <= b && b <= list.max:
 		if list.children[b-list.min] != nil {
 			panic("dense child list collision detected")
 		}
-		list.children[b-list.min] = child
+		i = b - list.min
+		list.children[i] = child
 
 	case b < list.min:
 		children := make([]*Trie, list.max-b+1)
-		children[0] = child
+		i = 0
+		children[i] = child
 		copy(children[list.min-b:], list.children)
 		list.children = children
 		list.min = b
 
 	default: // b > list.max
 		children := make([]*Trie, b-list.min+1)
-		children[b-list.min] = child
+		i = b - list.min
+		children[i] = child
 		copy(children, list.children)
 		list.children = children
 		list.max = b
 	}
 
+	list.numChildren++
+	if i < list.headIndex {
+		list.headIndex = i
+	}
 	return list
 }
 
@@ -231,7 +247,18 @@ func (list *denseChildList) remove(b byte) {
 		// This is not supposed to be reached.
 		panic("removing non-existent child")
 	}
+	list.numChildren--
 	list.children[i] = nil
+
+	// Update head index.
+	if i == list.headIndex {
+		for ; i < len(list.children); i++ {
+			if list.children[i] != nil {
+				list.headIndex = i
+				return
+			}
+		}
+	}
 }
 
 func (list *denseChildList) replace(b byte, child *Trie) {

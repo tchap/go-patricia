@@ -238,9 +238,15 @@ func (trie *Trie) Delete(key Prefix) (deleted bool) {
 	}
 
 	// Find the relevant node.
-	parent, node, _, leftover := trie.findSubtree(key)
-	if len(leftover) != 0 {
+	path, found, _ := trie.findSubtreePath(key)
+	if !found {
 		return false
+	}
+
+	node := path[len(path)-1]
+	var parent *Trie
+	if len(path) != 1 {
+		parent = path[len(path)-2]
 	}
 
 	// If the item is already set to nil, there is nothing to do.
@@ -251,20 +257,53 @@ func (trie *Trie) Delete(key Prefix) (deleted bool) {
 	// Delete the item.
 	node.item = nil
 
-	// Simply remote the node in case it is empty.
-	if node.empty() {
-		if parent == nil {
-			// In case this is the root node, we reset it.
-			node.reset()
-		} else {
-			// Otherwise we simply remove it from the parent.
-			parent.children.remove(node.prefix[0])
-		}
-		// Done, the node is deleted.
+	// Initialise i before goto.
+	// Will be used later in a loop.
+	i := len(path) - 1
+
+	// In case there are some child nodes, we cannot drop the whole subtree.
+	// We can try to compact nodes, though.
+	if node.children.length() != 0 {
+		goto Compact
+	}
+
+	// In case we are at the root, just reset it and we are done.
+	if parent == nil {
+		node.reset()
 		return true
 	}
 
-	// The node is not empty, compact since that might be possible now.
+	// We can drop a subtree.
+	// Find the first ancestor that has its value set or it has 2 or more child nodes.
+	// That will be the node where to drop the subtree at.
+	for ; i >= 0; i-- {
+		if current := path[i]; current.item != nil || current.children.length() >= 2 {
+			break
+		}
+	}
+
+	// Handle the case when there is no such node.
+	// In other words, we can reset the whole tree.
+	if i == -1 {
+		path[0].reset()
+		return true
+	}
+
+	// We can just remove the subtree here.
+	node = path[i]
+	if i == 0 {
+		parent = nil
+	} else {
+		parent = path[i-1]
+	}
+	// i+1 is always a valid index since i is never pointing to the last node.
+	// The loop above skips at least the last node since we are sure that the item
+	// is set to nil and it has no children, othewise we would be compacting instead.
+	node.children.remove(path[i+1].prefix[0])
+
+Compact:
+	// The node is set to the first non-empty ancestor,
+	// so try to compact since that might be possible now.
 	if compacted := node.compact(); compacted != node {
 		if parent == nil {
 			*node = *compacted
@@ -461,6 +500,43 @@ func (trie *Trie) findSubtree(prefix Prefix) (parent *Trie, root *Trie, found bo
 		}
 
 		parent = root
+		root = child
+	}
+}
+
+func (trie *Trie) findSubtreePath(prefix Prefix) (path []*Trie, found bool, leftover Prefix) {
+	// Find the subtree matching prefix.
+	root := trie
+	var subtreePath []*Trie
+	for {
+		// Append the current root to the path.
+		subtreePath = append(subtreePath, root)
+
+		// Compute what part of prefix matches.
+		common := root.longestCommonPrefixLength(prefix)
+		prefix = prefix[common:]
+
+		// We used up the whole prefix, subtree found.
+		if len(prefix) == 0 {
+			path = subtreePath
+			found = true
+			leftover = root.prefix[common:]
+			return
+		}
+
+		// Partial match means that there is no subtree matching prefix.
+		if common < len(root.prefix) {
+			leftover = root.prefix[common:]
+			return
+		}
+
+		// There is some prefix left, move to the children.
+		child := root.children.next(prefix[0])
+		if child == nil {
+			// There is nowhere to continue, there is no subtree matching prefix.
+			return
+		}
+
 		root = child
 	}
 }
