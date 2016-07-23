@@ -8,13 +8,15 @@ package patricia
 import (
 	"runtime"
 	"testing"
+
+	"github.com/satori/go.uuid"
 )
 
 // Tests -----------------------------------------------------------------------
 
 // overhead is allowed tolerance for Go's runtime/GC to increase the allocated memory
 // (to avoid failing tests on insignificant growth amounts)
-const overhead = 25000
+const overhead = 4000
 
 func TestTrie_InsertDense(t *testing.T) {
 	trie := NewTrie()
@@ -168,33 +170,16 @@ func TestTrie_DeleteDense(t *testing.T) {
 func TestTrie_DeleteLeakageDense(t *testing.T) {
 	trie := NewTrie()
 
-	data := []testData{
-		{"aba", 0, success},
-		{"abb", 1, success},
-		{"abc", 2, success},
-		{"abd", 3, success},
-		{"abe", 4, success},
-		{"abf", 5, success},
-		{"abg", 6, success},
-		{"abh", 7, success},
-		{"abi", 8, success},
-		{"abj", 9, success},
-		{"abk", 0, success},
-		{"abl", 1, success},
-		{"abm", 2, success},
-		{"abn", 3, success},
-		{"abo", 4, success},
-		{"abp", 5, success},
-		{"abq", 6, success},
-		{"abr", 7, success},
-		{"abs", 8, success},
-		{"abt", 9, success},
-		{"abu", 0, success},
-		{"abv", 1, success},
-		{"abw", 2, success},
-		{"abx", 3, success},
-		{"aby", 4, success},
-		{"abz", 5, success},
+	genTestData := func() *testData {
+		// Generate a random hash as a key.
+		key := uuid.NewV4()
+		return &testData{key: key.String(), value: "v", retVal: success}
+	}
+
+	testSize := 100
+	data := make([]*testData, 0, testSize)
+	for i := 0; i < testSize; i++ {
+		data = append(data, genTestData())
 	}
 
 	oldBytes := heapAllocatedBytes()
@@ -217,6 +202,10 @@ func TestTrie_DeleteLeakageDense(t *testing.T) {
 	if newBytes := heapAllocatedBytes(); newBytes > oldBytes+overhead {
 		t.Logf("Size=%d, Total=%d, Trie state:\n%s\n", trie.size(), trie.total(), trie.dump())
 		t.Errorf("Heap space leak, grew %d bytes (%d to %d)\n", newBytes-oldBytes, oldBytes, newBytes)
+	}
+
+	if numChildren := trie.children.length(); numChildren != 0 {
+		t.Errorf("Trie is not empty: %v children found", numChildren)
 	}
 }
 
