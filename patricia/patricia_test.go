@@ -108,3 +108,24 @@ func TestTrie_DeleteRoot(t *testing.T) {
 		t.Errorf("Unexpected return value, expected=%v, got=%v", v.retVal, ok)
 	}
 }
+
+func TestTrie_DeleteAbsentPrefix(t *testing.T) {
+	trie := NewTrie()
+
+	v := testData{"a", 0, success}
+
+	t.Logf("INSERT prefix=%v, item=%v, success=%v", v.key, v.value, v.retVal)
+	if ok := trie.Insert(Prefix(v.key), v.value); ok != v.retVal {
+		t.Errorf("Unexpected return value, expected=%v, got=%v", v.retVal, ok)
+	}
+
+	d := "ab"
+	t.Logf("DELETE prefix=%v, success=%v", d, failure)
+	if ok := trie.Delete(Prefix(d)); ok != failure {
+		t.Errorf("Unexpected return value, expected=%v, got=%v", failure, ok)
+	}
+	t.Logf("GET prefix=%v, item=%v, success=%v", v.key, v.value, v.retVal)
+	if i := trie.Get(Prefix(v.key)); i != v.value {
+		t.Errorf("Unexpected item, expected=%v, got=%v", v.value, i)
+	}
+}
