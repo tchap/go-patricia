@@ -1,0 +1,10 @@
+pipeline:
+  build:
+    image: golang:latest
+    environment:
+      - GOPATH=/drone
+    commands:
+      - cd patricia
+      - go get -t
+      - go build
+      - go test
