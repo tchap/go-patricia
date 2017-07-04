@@ -115,7 +115,3 @@ MIT, check the `LICENSE` file.
 [![Gittip
 Badge](http://img.shields.io/gittip/alanhamlett.png)](https://www.gittip.com/tchap/
 "Gittip Badge")
-
-[![Bitdeli
-Badge](https://d2weczhvl823v0.cloudfront.net/tchap/go-patricia/trend.png)](https://bitdeli.com/free
-"Bitdeli Badge")
