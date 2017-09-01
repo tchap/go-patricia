@@ -67,7 +67,7 @@ func TestTrie_InsertDensePreceeding(t *testing.T) {
 			t.Errorf("insert failed, prefix=%v", start+i)
 		}
 	}
-	// insert some preceeding keys
+	// insert some preceding keys
 	for i := byte(1); i < start; i *= i + 1 {
 		if !trie.Insert(Prefix([]byte{start - i}), true) {
 			t.Errorf("insert failed, prefix=%v", start-i)
