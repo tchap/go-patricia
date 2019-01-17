@@ -6,10 +6,10 @@
 package patricia
 
 import (
+	"math/rand"
 	"runtime"
+	"strconv"
 	"testing"
-
-	"github.com/satori/go.uuid"
 )
 
 // Tests -----------------------------------------------------------------------
@@ -120,6 +120,67 @@ func TestTrie_InsertDenseDuplicatePrefixes(t *testing.T) {
 	}
 }
 
+func TestTrie_CloneDense(t *testing.T) {
+	trie := NewTrie()
+
+	data := []testData{
+		{"aba", 0, success},
+		{"abb", 1, success},
+		{"abc", 2, success},
+		{"abd", 3, success},
+		{"abe", 4, success},
+		{"abf", 5, success},
+		{"abg", 6, success},
+		{"abh", 7, success},
+		{"abi", 8, success},
+		{"abj", 9, success},
+		{"abk", 0, success},
+		{"abl", 1, success},
+		{"abm", 2, success},
+		{"abn", 3, success},
+		{"abo", 4, success},
+		{"abp", 5, success},
+		{"abq", 6, success},
+		{"abr", 7, success},
+		{"abs", 8, success},
+		{"abt", 9, success},
+		{"abu", 0, success},
+		{"abv", 1, success},
+		{"abw", 2, success},
+		{"abx", 3, success},
+		{"aby", 4, success},
+		{"abz", 5, success},
+	}
+
+	for _, v := range data {
+		t.Logf("INSERT prefix=%v, item=%v, success=%v", v.key, v.value, v.retVal)
+		if ok := trie.Insert(Prefix(v.key), v.value); ok != v.retVal {
+			t.Errorf("Unexpected return value, expected=%v, got=%v", v.retVal, ok)
+		}
+	}
+
+	t.Log("CLONE")
+	clone := trie.Clone()
+
+	for _, v := range data {
+		t.Logf("GET prefix=%v, item=%v", v.key, v.value)
+		if item := clone.Get(Prefix(v.key)); item != v.value {
+			t.Errorf("Unexpected return value, expected=%v, got=%v", v.value, item)
+		}
+	}
+
+	prefix := "xxx"
+	item := 666
+	t.Logf("INSERT prefix=%v, item=%v", prefix, item)
+	if ok := trie.Insert(Prefix(prefix), item); !ok {
+		t.Errorf("Unexpected return value, expected=true, got=%v", ok)
+	}
+	t.Logf("GET cloned prefix=%v", prefix)
+	if item := clone.Get(Prefix(prefix)); item != nil {
+		t.Errorf("Unexpected return value, expected=nil, got=%v", item)
+	}
+}
+
 func TestTrie_DeleteDense(t *testing.T) {
 	trie := NewTrie()
 
@@ -171,9 +232,9 @@ func TestTrie_DeleteLeakageDense(t *testing.T) {
 	trie := NewTrie()
 
 	genTestData := func() *testData {
-		// Generate a random hash as a key.
-		key := uuid.NewV4()
-		return &testData{key: key.String(), value: "v", retVal: success}
+		// Generate a random integer as a key.
+		key := strconv.FormatUint(rand.Uint64(), 10)
+		return &testData{key: key, value: "v", retVal: success}
 	}
 
 	testSize := 100
