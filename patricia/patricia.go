@@ -218,7 +218,8 @@ func (node *Trie) VisitFuzzy(partial Prefix, visitor FuzzyVisitorFunc) error {
 			continue
 		}
 
-		matchCount, skipped := fuzzyMatchCount(p.node.prefix, partial[p.idx:])
+		matchCount, skipped := fuzzyMatchCount(p.node.prefix,
+			partial[p.idx:], p.idx)
 		p.idx += matchCount
 		if p.idx != 0 {
 			p.skipped += skipped
@@ -262,15 +263,18 @@ func (node *Trie) VisitFuzzy(partial Prefix, visitor FuzzyVisitorFunc) error {
 	return nil
 }
 
-func fuzzyMatchCount(prefix, query Prefix) (count, skipped int) {
+func fuzzyMatchCount(prefix, query Prefix, idx int) (count, skipped int) {
 	for i := 0; i < len(prefix); i++ {
+
 		if prefix[i] != query[count] {
-			skipped++
+			if count+idx > 0 {
+				skipped++
+			}
 			continue
 		}
 
 		count++
-		if count == len(query) {
+		if idx+count >= len(query) {
 			return
 		}
 	}

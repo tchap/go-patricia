@@ -269,6 +269,18 @@ func TestTrie_FuzzyCollect(t *testing.T) {
 				{"Honza", 3},
 			},
 		},
+		{
+			"nza",
+			[]testResult{
+				{"Honza", 0},
+			},
+		},
+		{
+			"eni",
+			[]testResult{
+				{"Jenik", 0},
+			},
+		},
 	}
 
 	for _, data := range testQueries {
