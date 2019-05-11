@@ -23,9 +23,10 @@ const (
 )
 
 type (
-	Prefix      []byte
-	Item        interface{}
-	VisitorFunc func(prefix Prefix, item Item) error
+	Prefix           []byte
+	Item             interface{}
+	VisitorFunc      func(prefix Prefix, item Item) error
+	FuzzyVisitorFunc func(prefix Prefix, item Item, skipped int) error
 )
 
 // Trie is a generic patricia trie that allows fast retrieval of items by prefix.
@@ -187,12 +188,18 @@ func (trie *Trie) VisitSubtree(prefix Prefix, visitor VisitorFunc) error {
 }
 
 type potentialSubtree struct {
-	idx    int
-	prefix Prefix
-	node   *Trie
+	idx     int
+	skipped int
+	prefix  Prefix
+	node    *Trie
 }
 
-func (node *Trie) VisitFuzzy(partial Prefix, visitor VisitorFunc) error {
+type FuzzyResult struct {
+	Prefix Prefix
+	Item   Item
+}
+
+func (node *Trie) VisitFuzzy(partial Prefix, visitor FuzzyVisitorFunc) error {
 	var (
 		m uint64
 		i int
@@ -211,8 +218,11 @@ func (node *Trie) VisitFuzzy(partial Prefix, visitor VisitorFunc) error {
 			continue
 		}
 
-		matchCount := fuzzyMatchCount(p.node.prefix, partial[p.idx:])
+		matchCount, skipped := fuzzyMatchCount(p.node.prefix, partial[p.idx:])
 		p.idx += matchCount
+		if p.idx != 0 {
+			p.skipped += skipped
+		}
 
 		if p.idx == len(partial) {
 			fullPrefix := append(p.prefix, p.node.prefix...)
@@ -221,7 +231,7 @@ func (node *Trie) VisitFuzzy(partial Prefix, visitor VisitorFunc) error {
 				key := make([]byte, len(fullPrefix)+len(prefix))
 				copy(key, append(fullPrefix, prefix...))
 
-				err := visitor(key, item)
+				err := visitor(key, item, p.skipped)
 				if err != nil {
 					return err
 				}
@@ -238,9 +248,10 @@ func (node *Trie) VisitFuzzy(partial Prefix, visitor VisitorFunc) error {
 		for _, c := range p.node.children.getChildren() {
 			if c != nil {
 				potential = append(potential, potentialSubtree{
-					node:   c,
-					prefix: append(p.prefix, p.node.prefix...),
-					idx:    p.idx,
+					node:    c,
+					prefix:  append(p.prefix, p.node.prefix...),
+					idx:     p.idx,
+					skipped: p.skipped,
 				})
 			} else {
 				fmt.Println("warning, child isn il")
@@ -251,9 +262,10 @@ func (node *Trie) VisitFuzzy(partial Prefix, visitor VisitorFunc) error {
 	return nil
 }
 
-func fuzzyMatchCount(prefix, query Prefix) (count int) {
+func fuzzyMatchCount(prefix, query Prefix) (count, skipped int) {
 	for i := 0; i < len(prefix); i++ {
 		if prefix[i] != query[count] {
+			skipped++
 			continue
 		}
 

@@ -244,33 +244,53 @@ func TestTrie_FuzzyCollect(t *testing.T) {
 		}
 	}
 
-	type test struct {
-		query    string
-		wantKeys []string
+	type testResult struct {
+		wantKey     string
+		wantSkipped int
 	}
 
-	testData := []test{
+	type testData struct {
+		query       string
+		wantResults []testResult
+	}
+
+	testQueries := []testData{
 		{
 			"Ppn",
-			[]string{
-				"Pepan",
-				"Pepin",
-				"Pepanek",
+			[]testResult{
+				{"Pepan", 2},
+				{"Pepin", 2},
+				{"Pepanek", 2},
+			},
+		},
+		{
+			"Ha",
+			[]testResult{
+				{"Honza", 3},
 			},
 		},
 	}
 
-	for _, data := range testData {
-		resultMap := make(map[string]bool)
-		trie.VisitFuzzy(Prefix(data.query), func(prefix Prefix, item Item) error {
-			resultMap[string(prefix)] = true
+	for _, data := range testQueries {
+		resultMap := make(map[string]int)
+		t.Logf("QUERY %s", data.query)
+		trie.VisitFuzzy(Prefix(data.query), func(prefix Prefix, item Item, skipped int) error {
+			// result := testResult{string(prefix), skipped}
+			resultMap[string(prefix)] = skipped
 			return nil
 		})
 		t.Logf("got result set %v\n", resultMap)
 
-		for _, want := range data.wantKeys {
-			if _, ok := resultMap[want]; !ok {
-				t.Errorf("item %s not found in result set\n", want)
+		for _, want := range data.wantResults {
+			got, ok := resultMap[want.wantKey]
+			if !ok {
+				t.Errorf("item %s not found in result set\n", want.wantKey)
+				continue
+			}
+
+			if got != want.wantSkipped {
+				t.Errorf("got wrong skipped value, wanted %d, got %d\n",
+					want.wantSkipped, got)
 			}
 		}
 	}
