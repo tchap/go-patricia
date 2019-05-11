@@ -405,6 +405,9 @@ func (trie *Trie) Delete(key Prefix) (deleted bool) {
 	// The loop above skips at least the last node since we are sure that the item
 	// is set to nil and it has no children, othewise we would be compacting instead.
 	node.children.remove(path[i+1].prefix[0])
+
+	// lastly, the bitmasks of all of the parent nodes have to be updated again, since
+	// a child node of all of them has bin removed
 	for ; i >= 0; i-- {
 		n := path[i]
 		n.mask = n.children.combinedMask()
@@ -441,6 +444,7 @@ func (trie *Trie) DeleteSubtree(prefix Prefix) (deleted bool) {
 
 	// Locate the relevant subtree.
 	parent, root, found, _ := trie.findSubtree(prefix)
+	path, _, _ := trie.findSubtreePath(prefix)
 	if !found {
 		return false
 	}
@@ -452,9 +456,15 @@ func (trie *Trie) DeleteSubtree(prefix Prefix) (deleted bool) {
 	}
 
 	// Otherwise remove the root node from its parent.
-	// TODO: properly reset mask of parent nodes
 	parent.children.remove(root.prefix[0])
+
+	// update masks
 	parent.mask = parent.children.combinedMask()
+	for i := len(path) - 1; i >= 0; i-- {
+		n := path[i]
+		n.mask = n.children.combinedMask()
+	}
+
 	return true
 }
 
