@@ -274,7 +274,7 @@ func fuzzyMatchCount(prefix, query Prefix, idx int) (count, skipped int) {
 		}
 
 		count++
-		if idx+count >= len(query) {
+		if count >= len(query) {
 			return
 		}
 	}
