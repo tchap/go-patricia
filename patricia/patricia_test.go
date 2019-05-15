@@ -308,6 +308,93 @@ func TestTrie_FuzzyCollect(t *testing.T) {
 	}
 }
 
+func TestTrie_SubstringCollect(t *testing.T) {
+	trie := NewTrie()
+	data := []testData{
+		{"Pepan", "Pepan Zdepan", success},
+		{"Pepin", "Pepin Omacka", success},
+		{"Honza", "Honza Novak", success},
+		{"Jenik", "Jenik Poustevnicek", success},
+		{"Pepan", "Pepan Dupan", failure},
+		{"Karel", "Karel Pekar", success},
+		{"Jenak", "Jenak Poustevnicek", success},
+		{"Pepanek", "Pepanek Zemlicka", success},
+	}
+
+	for _, v := range data {
+		t.Logf("INSERT prefix=%v, item=%v, success=%v", v.key, v.value, v.retVal)
+		if ok := trie.Insert(Prefix(v.key), v.value); ok != v.retVal {
+			t.Errorf("Unexpected return value, expected=%v, got=%v", v.retVal, ok)
+		}
+	}
+
+	type testResult struct {
+		wantKey string
+	}
+
+	type testData struct {
+		query       string
+		wantResults []testResult
+	}
+
+	testQueries := []testData{
+		{
+			"epa",
+			[]testResult{
+				{"Pepan"},
+				{"Pepanek"},
+			},
+		},
+		{
+			"onza",
+			[]testResult{
+				{"Honza"},
+			},
+		},
+		{
+			"nza",
+			[]testResult{
+				{"Honza"},
+			},
+		},
+		{
+			"l",
+			[]testResult{
+				{"Karel"},
+			},
+		},
+		{
+			"a",
+			[]testResult{
+				{"Pepan"},
+				{"Honza"},
+				{"Pepan"},
+				{"Karel"},
+				{"Jenak"},
+				{"Pepanek"},
+			},
+		},
+	}
+
+	for _, data := range testQueries {
+		resultMap := make(map[string]bool)
+		t.Logf("QUERY %s", data.query)
+		trie.VisitSubstring(Prefix(data.query), func(prefix Prefix, item Item) error {
+			// result := testResult{string(prefix), skipped}
+			resultMap[string(prefix)] = true
+			return nil
+		})
+		t.Logf("got result set %v\n", resultMap)
+
+		for _, want := range data.wantResults {
+			if _, ok := resultMap[want.wantKey]; !ok {
+				t.Errorf("item %s not found in result set\n", want.wantKey)
+				continue
+			}
+		}
+	}
+}
+
 func Test_makePrefixMask(t *testing.T) {
 	type testData struct {
 		key    Prefix

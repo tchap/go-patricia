@@ -194,11 +194,6 @@ type potentialSubtree struct {
 	node    *Trie
 }
 
-type FuzzyResult struct {
-	Prefix Prefix
-	Item   Item
-}
-
 func (node *Trie) VisitFuzzy(partial Prefix, visitor FuzzyVisitorFunc) error {
 	var (
 		m uint64
@@ -229,8 +224,9 @@ func (node *Trie) VisitFuzzy(partial Prefix, visitor FuzzyVisitorFunc) error {
 			fullPrefix := append(p.prefix, p.node.prefix...)
 
 			err := p.node.walk(Prefix(""), func(prefix Prefix, item Item) error {
-				key := make([]byte, len(fullPrefix)+len(prefix))
-				copy(key, append(fullPrefix, prefix...))
+				key := make([]byte, len(fullPrefix), len(fullPrefix)+len(prefix))
+				copy(key, fullPrefix)
+				key = append(key, prefix...)
 
 				err := visitor(key, item, p.skipped)
 				if err != nil {
@@ -248,9 +244,12 @@ func (node *Trie) VisitFuzzy(partial Prefix, visitor FuzzyVisitorFunc) error {
 
 		for _, c := range p.node.children.getChildren() {
 			if c != nil {
+				newPrefix := make(Prefix, len(p.prefix), len(p.prefix)+len(p.node.prefix))
+				copy(newPrefix, p.prefix)
+				newPrefix = append(newPrefix, p.node.prefix...)
 				potential = append(potential, potentialSubtree{
 					node:    c,
-					prefix:  append(p.prefix, p.node.prefix...),
+					prefix:  newPrefix,
 					idx:     p.idx,
 					skipped: p.skipped,
 				})
@@ -279,6 +278,87 @@ func fuzzyMatchCount(prefix, query Prefix, idx int) (count, skipped int) {
 		}
 	}
 	return
+}
+
+// VisitSubstring takes a substring and visits all the nodes that contain this substring
+func (node *Trie) VisitSubstring(substring Prefix, visitor VisitorFunc) error {
+	var (
+		m            uint64
+		i            int
+		p            potentialSubtree
+		suffixLen    int
+		maxSuffixLen = len(substring) - 1
+	)
+
+	potential := []potentialSubtree{potentialSubtree{node: node, prefix: nil}}
+	for l := len(potential); l > 0; l = len(potential) {
+		i = l - 1
+		p = potential[i]
+
+		potential = potential[:i]
+
+		if len(p.prefix) < maxSuffixLen {
+			suffixLen = len(p.prefix)
+		} else {
+			suffixLen = maxSuffixLen
+		}
+
+		searchBytes := append(p.prefix[len(p.prefix)-suffixLen:], p.node.prefix...)
+
+		if bytes.Contains(searchBytes, substring) {
+			fullPrefix := append(p.prefix, p.node.prefix...)
+			err := p.node.walk(Prefix(""), func(prefix Prefix, item Item) error {
+				key := make([]byte, len(fullPrefix), len(fullPrefix)+len(prefix))
+				copy(key, fullPrefix)
+				key = append(key, prefix...)
+				copy(key, append(fullPrefix, prefix...))
+
+				err := visitor(key, item)
+				if err != nil {
+					return err
+				}
+
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+		}
+
+		newPrefix := make(Prefix, len(p.prefix), len(p.prefix)+len(p.node.prefix))
+		copy(newPrefix, p.prefix)
+		newPrefix = append(newPrefix, p.node.prefix...)
+
+		overLap := overlapLength(newPrefix, substring)
+		m = makePrefixMask(substring[overLap:])
+
+		for _, c := range p.node.children.getChildren() {
+			if c != nil && (c.mask&m == m) {
+				potential = append(potential, potentialSubtree{
+					node:   c,
+					prefix: newPrefix,
+				})
+			}
+		}
+	}
+
+	return nil
+}
+
+func overlapLength(prefix, query Prefix) int {
+	startLength := len(query) - 1
+	if len(prefix) < startLength {
+		startLength = len(prefix)
+	}
+	for i := startLength; i > 0; i-- {
+		suffix := prefix[:len(prefix)-i]
+		querySuffix := query[:len(query)-i]
+		if bytes.Equal(suffix, querySuffix) {
+			return i
+		}
+	}
+
+	return 0
 }
 
 // VisitPrefixes visits only nodes that represent prefixes of key.
