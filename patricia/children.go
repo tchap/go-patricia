@@ -81,7 +81,7 @@ func (list *sparseChildList) add(child *Trie) childList {
 }
 
 func (list sparseChildList) combinedMask() uint64 {
-	var mask uint64 = 0
+	var mask uint64
 	for _, child := range list.children {
 		if child != nil {
 			mask |= child.mask
@@ -359,7 +359,7 @@ func (list *denseChildList) print(w io.Writer, indent int) {
 }
 
 func (list denseChildList) combinedMask() uint64 {
-	var mask uint64 = 0
+	var mask uint64
 	for _, child := range list.children {
 		if child != nil {
 			mask |= child.mask
