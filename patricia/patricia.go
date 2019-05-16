@@ -351,9 +351,9 @@ func overlapLength(prefix, query Prefix) int {
 		startLength = len(prefix)
 	}
 	for i := startLength; i > 0; i-- {
-		suffix := prefix[:len(prefix)-i]
-		querySuffix := query[:len(query)-i]
-		if bytes.Equal(suffix, querySuffix) {
+		suffix := prefix[len(prefix)-i:]
+		queryPrefix := query[:i]
+		if bytes.Equal(suffix, queryPrefix) {
 			return i
 		}
 	}
