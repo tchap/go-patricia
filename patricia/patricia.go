@@ -22,6 +22,11 @@ const (
 	DefaultMaxChildrenPerSparseNode = 8
 )
 
+var (
+	maxPrefixPerNode         int
+	maxChildrenPerSparseNode int
+)
+
 type (
 	Prefix           []byte
 	Item             interface{}
@@ -38,9 +43,6 @@ type Trie struct {
 	item   Item
 	mask   uint64
 
-	maxPrefixPerNode         int
-	maxChildrenPerSparseNode int
-
 	children childList
 }
 
@@ -56,27 +58,27 @@ func NewTrie(options ...Option) *Trie {
 		opt(trie)
 	}
 
-	if trie.maxPrefixPerNode <= 0 {
-		trie.maxPrefixPerNode = DefaultMaxPrefixPerNode
+	if maxPrefixPerNode <= 0 {
+		maxPrefixPerNode = DefaultMaxPrefixPerNode
 	}
-	if trie.maxChildrenPerSparseNode <= 0 {
-		trie.maxChildrenPerSparseNode = DefaultMaxChildrenPerSparseNode
+	if maxChildrenPerSparseNode <= 0 {
+		maxChildrenPerSparseNode = DefaultMaxChildrenPerSparseNode
 	}
 
-	trie.children = newSparseChildList(trie.maxChildrenPerSparseNode)
+	trie.children = newSparseChildList(maxChildrenPerSparseNode)
 	trie.mask = 0
 	return trie
 }
 
 func MaxPrefixPerNode(value int) Option {
 	return func(trie *Trie) {
-		trie.maxPrefixPerNode = value
+		maxPrefixPerNode = value
 	}
 }
 
 func MaxChildrenPerSparseNode(value int) Option {
 	return func(trie *Trie) {
-		trie.maxChildrenPerSparseNode = value
+		maxChildrenPerSparseNode = value
 	}
 }
 
@@ -84,11 +86,9 @@ func MaxChildrenPerSparseNode(value int) Option {
 // Items stored in both tries become shared, obviously.
 func (trie *Trie) Clone() *Trie {
 	return &Trie{
-		prefix:                   append(Prefix(nil), trie.prefix...),
-		item:                     trie.item,
-		maxPrefixPerNode:         trie.maxPrefixPerNode,
-		maxChildrenPerSparseNode: trie.maxChildrenPerSparseNode,
-		children:                 trie.children.clone(),
+		prefix:   append(Prefix(nil), trie.prefix...),
+		item:     trie.item,
+		children: trie.children.clone(),
 	}
 }
 
@@ -560,7 +560,7 @@ func (trie *Trie) empty() bool {
 
 func (trie *Trie) reset() {
 	trie.prefix = nil
-	trie.children = newSparseChildList(trie.maxPrefixPerNode)
+	trie.children = newSparseChildList(maxPrefixPerNode)
 }
 
 func makePrefixMask(key Prefix) uint64 {
@@ -606,12 +606,12 @@ func (trie *Trie) put(key Prefix, item Item, replace bool) (inserted bool) {
 
 	if node.prefix == nil {
 		node.mask |= mask
-		if len(key) <= trie.maxPrefixPerNode {
+		if len(key) <= maxPrefixPerNode {
 			node.prefix = key
 			goto InsertItem
 		}
-		node.prefix = key[:trie.maxPrefixPerNode]
-		key = key[trie.maxPrefixPerNode:]
+		node.prefix = key[:maxPrefixPerNode]
+		key = key[maxPrefixPerNode:]
 		mask = makePrefixMask(key)
 		goto AppendChild
 	}
@@ -661,14 +661,14 @@ AppendChild:
 	for len(key) != 0 {
 		child := NewTrie()
 		child.mask = mask
-		if len(key) <= trie.maxPrefixPerNode {
+		if len(key) <= maxPrefixPerNode {
 			child.prefix = key
 			node.children = node.children.add(child)
 			node = child
 			goto InsertItem
 		} else {
-			child.prefix = key[:trie.maxPrefixPerNode]
-			key = key[trie.maxPrefixPerNode:]
+			child.prefix = key[:maxPrefixPerNode]
+			key = key[maxPrefixPerNode:]
 			mask = makePrefixMask(key)
 			node.children = node.children.add(child)
 			node = child
@@ -700,7 +700,7 @@ func (trie *Trie) compact() *Trie {
 	}
 
 	// Make sure the combined prefixes fit into a single node.
-	if len(trie.prefix)+len(child.prefix) > trie.maxPrefixPerNode {
+	if len(trie.prefix)+len(child.prefix) > maxPrefixPerNode {
 		return trie
 	}
 
