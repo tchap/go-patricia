@@ -31,13 +31,7 @@ More (unit) testing would be cool as well...
 Import the package from GitHub first.
 
 ```go
-import "github.com/tchap/go-patricia/patricia"
-```
-
-You can as well use gopkg.in thingie:
-
-```go
-import "gopkg.in/tchap/go-patricia.v2/patricia"
+import "github.com/tchap/go-patricia/v2/patricia"
 ```
 
 Then you can start having fun.
