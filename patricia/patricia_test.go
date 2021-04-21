@@ -129,3 +129,305 @@ func TestTrie_DeleteAbsentPrefix(t *testing.T) {
 		t.Errorf("Unexpected item, expected=%v, got=%v", v.value, i)
 	}
 }
+
+func reverse(s string) string {
+	runes := []rune(s)
+	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
+		runes[i], runes[j] = runes[j], runes[i]
+	}
+	return string(runes)
+}
+
+func checkMasksRecursive(t *testing.T, root *Trie) {
+	for _, child := range root.children.getChildren() {
+		if child.mask & ^root.mask != 0 {
+			t.Errorf("\ninvalid mask at prefix %s\nchild prefix: %s\ncharmap: \t%s\nmask: \t%064b\n"+
+				"child mask: \t%064b\ndiff:\t%064b\n",
+				root.prefix,
+				child.prefix,
+				reverse(charmap),
+				root.mask,
+				child.mask,
+				child.mask & ^root.mask,
+			)
+		}
+		checkMasksRecursive(t, child)
+	}
+}
+
+func TestTrie_AddCorrectMasks(t *testing.T) {
+	trie := NewTrie()
+	data := []testData{
+		{"Pepan", "Pepan Zdepan", success},
+		{"Pepin", "Pepin Omacka", success},
+		{"Honza", "Honza Novak", success},
+		{"Jenik", "Jenik Poustevnicek", success},
+		{"Pepan", "Pepan Dupan", failure},
+		{"Karel", "Karel Pekar", success},
+		{"Jenak", "Jenak Poustevnicek", success},
+		{"Pepanek", "Pepanek Zemlicka", success},
+	}
+
+	for _, v := range data {
+		t.Logf("INSERT prefix=%v, item=%v, success=%v", v.key, v.value, v.retVal)
+		if ok := trie.Insert(Prefix(v.key), v.value); ok != v.retVal {
+			t.Errorf("Unexpected return value, expected=%v, got=%v", v.retVal, ok)
+		}
+		checkMasksRecursive(t, trie)
+	}
+}
+
+func TestTrie_DeleteCorrectMasks(t *testing.T) {
+	data := []testData{
+		{"Pepan", "Pepan Zdepan", success},
+		{"Pepin", "Pepin Omacka", success},
+		{"Honza", "Honza Novak", success},
+		{"Jenik", "Jenik Poustevnicek", success},
+		{"Karel", "Karel Pekar", success},
+		{"Jenak", "Jenak Poustevnicek", success},
+		{"Pepanek", "Pepanek Zemlicka", success},
+	}
+
+	deleteData := [][]testData{
+		{
+			{"Honza", "Honza Novak", success},
+			{"Jenik", "Jenik Poustevnicek", success},
+			{"Pepan", "Pepan Dupan", success},
+		},
+		{
+			{"Pepan", "Pepan Dupan", success},
+		},
+		{
+			{"Jenak", "Jenak Poustevnicek", success},
+			{"Pepanek", "Pepanek Zemlicka", success},
+			{"Pepin", "Pepin Omacka", success},
+			{"Honza", "Honza Novak", success},
+			{"Jenik", "Jenik Poustevnicek", success},
+		},
+	}
+
+	for _, d := range deleteData {
+		trie := NewTrie()
+		for _, v := range data {
+			t.Logf("INSERT prefix=%v, item=%v, success=%v", v.key, v.value, v.retVal)
+			if ok := trie.Insert(Prefix(v.key), v.value); ok != v.retVal {
+				t.Errorf("Unexpected return value, expected=%v, got=%v", v.retVal, ok)
+			}
+		}
+
+		for _, record := range d {
+			trie.Delete(Prefix(record.key))
+		}
+
+		checkMasksRecursive(t, trie)
+	}
+
+}
+
+func TestTrie_FuzzyCollect(t *testing.T) {
+	trie := NewTrie()
+	data := []testData{
+		{"Pepan", "Pepan Zdepan", success},
+		{"Pepin", "Pepin Omacka", success},
+		{"Honza", "Honza Novak", success},
+		{"Jenik", "Jenik Poustevnicek", success},
+		{"Pepan", "Pepan Dupan", failure},
+		{"Karel", "Karel Pekar", success},
+		{"Jenak", "Jenak Poustevnicek", success},
+		{"Pepanek", "Pepanek Zemlicka", success},
+	}
+
+	for _, v := range data {
+		t.Logf("INSERT prefix=%v, item=%v, success=%v", v.key, v.value, v.retVal)
+		if ok := trie.Insert(Prefix(v.key), v.value); ok != v.retVal {
+			t.Errorf("Unexpected return value, expected=%v, got=%v", v.retVal, ok)
+		}
+	}
+
+	type testResult struct {
+		wantKey     string
+		wantSkipped int
+	}
+
+	type testData struct {
+		query       string
+		wantResults []testResult
+	}
+
+	testQueries := []testData{
+		{
+			"Ppn",
+			[]testResult{
+				{"Pepan", 2},
+				{"Pepin", 2},
+				{"Pepanek", 2},
+			},
+		},
+		{
+			"Ha",
+			[]testResult{
+				{"Honza", 3},
+			},
+		},
+		{
+			"nza",
+			[]testResult{
+				{"Honza", 0},
+			},
+		},
+		{
+			"eni",
+			[]testResult{
+				{"Jenik", 0},
+			},
+		},
+	}
+
+	for _, data := range testQueries {
+		resultMap := make(map[string]int)
+		t.Logf("QUERY %s", data.query)
+		trie.VisitFuzzy(Prefix(data.query), func(prefix Prefix, item Item, skipped int) error {
+			// result := testResult{string(prefix), skipped}
+			resultMap[string(prefix)] = skipped
+			return nil
+		})
+		t.Logf("got result set %v\n", resultMap)
+
+		for _, want := range data.wantResults {
+			got, ok := resultMap[want.wantKey]
+			if !ok {
+				t.Errorf("item %s not found in result set\n", want.wantKey)
+				continue
+			}
+
+			if got != want.wantSkipped {
+				t.Errorf("got wrong skipped value, wanted %d, got %d\n",
+					want.wantSkipped, got)
+			}
+		}
+	}
+}
+
+func TestTrie_SubstringCollect(t *testing.T) {
+	trie := NewTrie()
+	data := []testData{
+		{"Pepan", "Pepan Zdepan", success},
+		{"Pepin", "Pepin Omacka", success},
+		{"Honza", "Honza Novak", success},
+		{"Jenik", "Jenik Poustevnicek", success},
+		{"Pepan", "Pepan Dupan", failure},
+		{"Karel", "Karel Pekar", success},
+		{"Jenak", "Jenak Poustevnicek", success},
+		{"Pepanek", "Pepanek Zemlicka", success},
+	}
+
+	for _, v := range data {
+		t.Logf("INSERT prefix=%v, item=%v, success=%v", v.key, v.value, v.retVal)
+		if ok := trie.Insert(Prefix(v.key), v.value); ok != v.retVal {
+			t.Errorf("Unexpected return value, expected=%v, got=%v", v.retVal, ok)
+		}
+	}
+
+	type testResult struct {
+		wantKey string
+	}
+
+	type testData struct {
+		query       string
+		wantResults []testResult
+	}
+
+	testQueries := []testData{
+		{
+			"epa",
+			[]testResult{
+				{"Pepan"},
+				{"Pepanek"},
+			},
+		},
+		{
+			"onza",
+			[]testResult{
+				{"Honza"},
+			},
+		},
+		{
+			"nza",
+			[]testResult{
+				{"Honza"},
+			},
+		},
+		{
+			"l",
+			[]testResult{
+				{"Karel"},
+			},
+		},
+		{
+			"a",
+			[]testResult{
+				{"Pepan"},
+				{"Honza"},
+				{"Pepan"},
+				{"Karel"},
+				{"Jenak"},
+				{"Pepanek"},
+			},
+		},
+	}
+
+	for _, data := range testQueries {
+		resultMap := make(map[string]bool)
+		t.Logf("QUERY %s", data.query)
+		trie.VisitSubstring(Prefix(data.query), func(prefix Prefix, item Item) error {
+			// result := testResult{string(prefix), skipped}
+			resultMap[string(prefix)] = true
+			return nil
+		})
+		t.Logf("got result set %v\n", resultMap)
+
+		for _, want := range data.wantResults {
+			if _, ok := resultMap[want.wantKey]; !ok {
+				t.Errorf("item %s not found in result set\n", want.wantKey)
+				continue
+			}
+		}
+	}
+}
+
+func Test_makePrefixMask(t *testing.T) {
+	type testData struct {
+		key    Prefix
+		wanted uint64
+	}
+
+	data := []testData{
+		{
+			Prefix("0123456789"),
+			0x3FF,
+		},
+		{
+			Prefix("AAAA"),
+			0x400,
+		},
+		{
+			Prefix(""),
+			0,
+		},
+		{
+			Prefix("abc"),
+			0x7000000000,
+		},
+		{
+			Prefix(".-"),
+			0xc000000000000000,
+		},
+	}
+
+	for _, d := range data {
+		got := makePrefixMask(d.key)
+		if got != d.wanted {
+			t.Errorf("Unexpected bitmask, wanted: %b, got %b\n", d.wanted, got)
+		}
+	}
+}
