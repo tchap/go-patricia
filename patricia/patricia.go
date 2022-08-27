@@ -23,9 +23,10 @@ const (
 )
 
 type (
-	Prefix      []byte
-	Item        interface{}
-	VisitorFunc func(prefix Prefix, item Item) error
+	Prefix           []byte
+	Item             interface{}
+	VisitorFunc      func(prefix Prefix, item Item) error
+	FuzzyVisitorFunc func(prefix Prefix, item Item, skipped int) error
 )
 
 // Trie is a generic patricia trie that allows fast retrieval of items by prefix.
@@ -35,6 +36,7 @@ type (
 type Trie struct {
 	prefix Prefix
 	item   Item
+	mask   uint64
 
 	maxPrefixPerNode         int
 	maxChildrenPerSparseNode int
@@ -62,6 +64,7 @@ func NewTrie(options ...Option) *Trie {
 	}
 
 	trie.children = newSparseChildList(trie.maxChildrenPerSparseNode)
+	trie.mask = 0
 	return trie
 }
 
@@ -182,6 +185,180 @@ func (trie *Trie) VisitSubtree(prefix Prefix, visitor VisitorFunc) error {
 
 	// Visit it.
 	return root.walk(prefix, visitor)
+}
+
+type potentialSubtree struct {
+	idx     int
+	skipped int
+	prefix  Prefix
+	node    *Trie
+}
+
+func (node *Trie) VisitFuzzy(partial Prefix, visitor FuzzyVisitorFunc) error {
+	var (
+		m uint64
+		i int
+		p potentialSubtree
+	)
+
+	potential := []potentialSubtree{potentialSubtree{node: node, prefix: Prefix(""), idx: 0}}
+	for l := len(potential); l > 0; l = len(potential) {
+		i = l - 1
+		p = potential[i]
+
+		potential = potential[:i]
+		m = makePrefixMask(partial[p.idx:])
+
+		if (p.node.mask & m) != m {
+			continue
+		}
+
+		matchCount, skipped := fuzzyMatchCount(p.node.prefix,
+			partial[p.idx:], p.idx)
+		p.idx += matchCount
+		if p.idx != 0 {
+			p.skipped += skipped
+		}
+
+		if p.idx == len(partial) {
+			fullPrefix := append(p.prefix, p.node.prefix...)
+
+			err := p.node.walk(Prefix(""), func(prefix Prefix, item Item) error {
+				key := make([]byte, len(fullPrefix), len(fullPrefix)+len(prefix))
+				copy(key, fullPrefix)
+				key = append(key, prefix...)
+
+				err := visitor(key, item, p.skipped)
+				if err != nil {
+					return err
+				}
+
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+
+			continue
+		}
+
+		for _, c := range p.node.children.getChildren() {
+			if c != nil {
+				newPrefix := make(Prefix, len(p.prefix), len(p.prefix)+len(p.node.prefix))
+				copy(newPrefix, p.prefix)
+				newPrefix = append(newPrefix, p.node.prefix...)
+				potential = append(potential, potentialSubtree{
+					node:    c,
+					prefix:  newPrefix,
+					idx:     p.idx,
+					skipped: p.skipped,
+				})
+			} else {
+				fmt.Println("warning, child isn il")
+			}
+		}
+	}
+
+	return nil
+}
+
+func fuzzyMatchCount(prefix, query Prefix, idx int) (count, skipped int) {
+	for i := 0; i < len(prefix); i++ {
+
+		if prefix[i] != query[count] {
+			if count+idx > 0 {
+				skipped++
+			}
+			continue
+		}
+
+		count++
+		if count >= len(query) {
+			return
+		}
+	}
+	return
+}
+
+// VisitSubstring takes a substring and visits all the nodes that contain this substring
+func (node *Trie) VisitSubstring(substring Prefix, visitor VisitorFunc) error {
+	var (
+		m            uint64
+		i            int
+		p            potentialSubtree
+		suffixLen    int
+		maxSuffixLen = len(substring) - 1
+	)
+
+	potential := []potentialSubtree{potentialSubtree{node: node, prefix: nil}}
+	for l := len(potential); l > 0; l = len(potential) {
+		i = l - 1
+		p = potential[i]
+
+		potential = potential[:i]
+
+		if len(p.prefix) < maxSuffixLen {
+			suffixLen = len(p.prefix)
+		} else {
+			suffixLen = maxSuffixLen
+		}
+
+		searchBytes := append(p.prefix[len(p.prefix)-suffixLen:], p.node.prefix...)
+
+		if bytes.Contains(searchBytes, substring) {
+			fullPrefix := append(p.prefix, p.node.prefix...)
+			err := p.node.walk(Prefix(""), func(prefix Prefix, item Item) error {
+				key := make([]byte, len(fullPrefix), len(fullPrefix)+len(prefix))
+				copy(key, fullPrefix)
+				key = append(key, prefix...)
+				copy(key, append(fullPrefix, prefix...))
+
+				err := visitor(key, item)
+				if err != nil {
+					return err
+				}
+
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+		}
+
+		newPrefix := make(Prefix, len(p.prefix), len(p.prefix)+len(p.node.prefix))
+		copy(newPrefix, p.prefix)
+		newPrefix = append(newPrefix, p.node.prefix...)
+
+		overLap := overlapLength(newPrefix, substring)
+		m = makePrefixMask(substring[overLap:])
+
+		for _, c := range p.node.children.getChildren() {
+			if c != nil && (c.mask&m == m) {
+				potential = append(potential, potentialSubtree{
+					node:   c,
+					prefix: newPrefix,
+				})
+			}
+		}
+	}
+
+	return nil
+}
+
+func overlapLength(prefix, query Prefix) int {
+	startLength := len(query) - 1
+	if len(prefix) < startLength {
+		startLength = len(prefix)
+	}
+	for i := startLength; i > 0; i-- {
+		suffix := prefix[len(prefix)-i:]
+		queryPrefix := query[:i]
+		if bytes.Equal(suffix, queryPrefix) {
+			return i
+		}
+	}
+
+	return 0
 }
 
 // VisitPrefixes visits only nodes that represent prefixes of key.
@@ -313,6 +490,13 @@ func (trie *Trie) Delete(key Prefix) (deleted bool) {
 	// is set to nil and it has no children, othewise we would be compacting instead.
 	node.children.remove(path[i+1].prefix[0])
 
+	// lastly, the bitmasks of all of the parent nodes have to be updated again, since
+	// a child node of all of them has bin removed
+	for ; i >= 0; i-- {
+		n := path[i]
+		n.mask = n.children.combinedMask()
+	}
+
 Compact:
 	// The node is set to the first non-empty ancestor,
 	// so try to compact since that might be possible now.
@@ -344,6 +528,7 @@ func (trie *Trie) DeleteSubtree(prefix Prefix) (deleted bool) {
 
 	// Locate the relevant subtree.
 	parent, root, found, _ := trie.findSubtree(prefix)
+	path, _, _ := trie.findSubtreePath(prefix)
 	if !found {
 		return false
 	}
@@ -356,6 +541,14 @@ func (trie *Trie) DeleteSubtree(prefix Prefix) (deleted bool) {
 
 	// Otherwise remove the root node from its parent.
 	parent.children.remove(root.prefix[0])
+
+	// update masks
+	parent.mask = parent.children.combinedMask()
+	for i := len(path) - 1; i >= 0; i-- {
+		n := path[i]
+		n.mask = n.children.combinedMask()
+	}
+
 	return true
 }
 
@@ -370,6 +563,32 @@ func (trie *Trie) reset() {
 	trie.children = newSparseChildList(trie.maxPrefixPerNode)
 }
 
+func makePrefixMask(key Prefix) uint64 {
+	var mask uint64 = 0
+	for _, b := range key {
+		if b >= '0' && b <= '9' {
+			// 0-9 bits: 0-9
+			b -= 48
+		} else if b >= 'A' && b <= 'Z' {
+			// A-Z bits: 10-35
+			b -= 55
+		} else if b >= 'a' && b <= 'z' {
+			// a-z bits: 36-61
+			b -= 61
+		} else if b == '.' {
+			b = 62
+		} else if b == '-' {
+			b = 63
+		} else {
+			continue
+		}
+		mask |= uint64(1) << uint64(b)
+	}
+	return mask
+}
+
+var charmap = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.-"
+
 func (trie *Trie) put(key Prefix, item Item, replace bool) (inserted bool) {
 	// Nil prefix not allowed.
 	if key == nil {
@@ -380,15 +599,20 @@ func (trie *Trie) put(key Prefix, item Item, replace bool) (inserted bool) {
 		common int
 		node   *Trie = trie
 		child  *Trie
+		mask   uint64
 	)
 
+	mask = makePrefixMask(key)
+
 	if node.prefix == nil {
+		node.mask |= mask
 		if len(key) <= trie.maxPrefixPerNode {
 			node.prefix = key
 			goto InsertItem
 		}
 		node.prefix = key[:trie.maxPrefixPerNode]
 		key = key[trie.maxPrefixPerNode:]
+		mask = makePrefixMask(key)
 		goto AppendChild
 	}
 
@@ -409,6 +633,7 @@ func (trie *Trie) put(key Prefix, item Item, replace bool) (inserted bool) {
 			goto InsertItem
 		}
 
+		node.mask |= mask
 		// Check children for matching prefix.
 		child = node.children.next(key[0])
 		if child == nil {
@@ -426,12 +651,16 @@ SplitPrefix:
 	child.prefix = child.prefix[common:]
 	child = child.compact()
 	node.children = node.children.add(child)
+	node.mask = child.mask
+	node.mask |= mask
+	mask = makePrefixMask(key)
 
 AppendChild:
 	// Keep appending children until whole prefix is inserted.
 	// This loop starts with empty node.prefix that needs to be filled.
 	for len(key) != 0 {
 		child := NewTrie()
+		child.mask = mask
 		if len(key) <= trie.maxPrefixPerNode {
 			child.prefix = key
 			node.children = node.children.add(child)
@@ -440,6 +669,7 @@ AppendChild:
 		} else {
 			child.prefix = key[:trie.maxPrefixPerNode]
 			key = key[trie.maxPrefixPerNode:]
+			mask = makePrefixMask(key)
 			node.children = node.children.add(child)
 			node = child
 		}
@@ -476,6 +706,7 @@ func (trie *Trie) compact() *Trie {
 
 	// Concatenate the prefixes, move the items.
 	child.prefix = append(trie.prefix, child.prefix...)
+	child.mask = trie.mask
 	if trie.item != nil {
 		child.item = trie.item
 	}

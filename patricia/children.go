@@ -18,6 +18,8 @@ type childList interface {
 	remove(b byte)
 	replace(b byte, child *Trie)
 	next(b byte) *Trie
+	combinedMask() uint64
+	getChildren() []*Trie
 	walk(prefix *Prefix, visitor VisitorFunc) error
 	print(w io.Writer, indent int)
 	clone() childList
@@ -43,6 +45,16 @@ type sparseChildList struct {
 	children tries
 }
 
+func (list *sparseChildList) getChildren() []*Trie {
+	children := make([]*Trie, 0, len(list.children))
+	for _, c := range list.children {
+		if c != nil {
+			children = append(children, c)
+		}
+	}
+	return children
+}
+
 func newSparseChildList(maxChildrenPerSparseNode int) childList {
 	return &sparseChildList{
 		children: make(tries, 0, maxChildrenPerSparseNode),
@@ -66,6 +78,16 @@ func (list *sparseChildList) add(child *Trie) childList {
 
 	// Otherwise we have to transform to the dense list type.
 	return newDenseChildList(list, child)
+}
+
+func (list sparseChildList) combinedMask() uint64 {
+	var mask uint64
+	for _, child := range list.children {
+		if child != nil {
+			mask |= child.mask
+		}
+	}
+	return mask
 }
 
 func (list *sparseChildList) remove(b byte) {
@@ -169,6 +191,16 @@ type denseChildList struct {
 	numChildren int
 	headIndex   int
 	children    []*Trie
+}
+
+func (list *denseChildList) getChildren() []*Trie {
+	children := make([]*Trie, 0, len(list.children))
+	for _, c := range list.children {
+		if c != nil {
+			children = append(children, c)
+		}
+	}
+	return children
 }
 
 func newDenseChildList(list *sparseChildList, child *Trie) childList {
@@ -324,6 +356,16 @@ func (list *denseChildList) print(w io.Writer, indent int) {
 			child.print(w, indent)
 		}
 	}
+}
+
+func (list denseChildList) combinedMask() uint64 {
+	var mask uint64
+	for _, child := range list.children {
+		if child != nil {
+			mask |= child.mask
+		}
+	}
+	return mask
 }
 
 func (list *denseChildList) clone() childList {
