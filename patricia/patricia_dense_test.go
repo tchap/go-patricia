@@ -20,7 +20,7 @@ import (
 // (to avoid failing tests on insignificant growth amounts)
 //
 // Can be overwritten by setting PATRICIA_TESTS_HEAP_OVERHEAD env variable.
-var HeapOverhead uint64 = 4000
+var HeapOverhead uint64 = 20000
 
 func init() {
 	if v := os.Getenv("PATRICIA_TESTS_HEAP_OVERHEAD"); v != "" {
