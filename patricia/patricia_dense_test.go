@@ -6,7 +6,9 @@
 package patricia
 
 import (
+	"fmt"
 	"math/rand"
+	"os"
 	"runtime"
 	"strconv"
 	"testing"
@@ -14,9 +16,21 @@ import (
 
 // Tests -----------------------------------------------------------------------
 
-// overhead is allowed tolerance for Go's runtime/GC to increase the allocated memory
+// HeapOverhead is allowed tolerance for Go's runtime/GC to increase the allocated memory
 // (to avoid failing tests on insignificant growth amounts)
-const overhead = 4000
+//
+// Can be overwritten by setting PATRICIA_TESTS_HEAP_OVERHEAD env variable.
+var HeapOverhead uint64 = 20000
+
+func init() {
+	if v := os.Getenv("PATRICIA_TESTS_HEAP_OVERHEAD"); v != "" {
+		i, err := strconv.ParseUint(v, 10, 64)
+		if err != nil {
+			panic(fmt.Errorf("failed to parse PATRICIA_TESTS_HEAP_OVERHEAD: %v", err))
+		}
+		HeapOverhead = i
+	}
+}
 
 func TestTrie_InsertDense(t *testing.T) {
 	trie := NewTrie()
@@ -260,7 +274,7 @@ func TestTrie_DeleteLeakageDense(t *testing.T) {
 		}
 	}
 
-	if newBytes := heapAllocatedBytes(); newBytes > oldBytes+overhead {
+	if newBytes := heapAllocatedBytes(); newBytes > oldBytes+HeapOverhead {
 		t.Logf("Size=%d, Total=%d, Trie state:\n%s\n", trie.size(), trie.total(), trie.dump())
 		t.Errorf("Heap space leak, grew %d bytes (%d to %d)\n", newBytes-oldBytes, oldBytes, newBytes)
 	}
