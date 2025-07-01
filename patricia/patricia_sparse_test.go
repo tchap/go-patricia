@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -628,6 +629,19 @@ func TestTrie_compact(t *testing.T) {
 			}
 		}
 		return nil
+	})
+}
+
+func TestTrie_compactChildrenHeadIsNil(t *testing.T) {
+	testName := "children head is nil"
+	t.Run(testName, func(t *testing.T) {
+		trie := NewTrie()
+		trie.children.add(nil)
+
+		// should return trie itself
+		if got := trie.compact(); !reflect.DeepEqual(got, trie) {
+			t.Errorf("compact() = %v, want %v", got, trie)
+		}
 	})
 }
 
