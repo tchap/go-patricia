@@ -310,7 +310,7 @@ func (trie *Trie) Delete(key Prefix) (deleted bool) {
 	}
 	// i+1 is always a valid index since i is never pointing to the last node.
 	// The loop above skips at least the last node since we are sure that the item
-	// is set to nil and it has no children, othewise we would be compacting instead.
+	// is set to nil and it has no children, otherwise we would be compacting instead.
 	node.children.remove(path[i+1].prefix[0])
 
 Compact:
